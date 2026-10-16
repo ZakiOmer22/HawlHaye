@@ -1,4 +1,3 @@
-
 import Link from "next/link";
 
 const features = [
@@ -38,16 +37,14 @@ const features = [
     number: "05",
     icon: "◎",
     title: "Activity & accountability",
-    description:
-      "Build a traceable history of task updates, decisions, assignments and reviews.",
+    description: "Build a traceable history of task updates, decisions, assignments and reviews.",
     tag: "Audit trail",
   },
   {
     number: "06",
     icon: "▦",
     title: "Administrative tools",
-    description:
-      "Organise offices, users and categories through a unified management experience.",
+    description: "Organise offices, users and categories through a unified management experience.",
     tag: "Centralised management",
   },
 ];
@@ -227,9 +224,7 @@ export default function Home() {
               H
             </div>
             <div>
-              <p className="text-lg font-extrabold tracking-[0.16em] text-[#142b4a]">
-                HAWLHAYE
-              </p>
+              <p className="text-lg font-extrabold tracking-[0.16em] text-[#142b4a]">HAWLHAYE</p>
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Work. Organised.
               </p>
@@ -288,9 +283,9 @@ export default function Home() {
             </h1>
 
             <p className="mt-7 max-w-xl text-base leading-8 text-slate-600 sm:text-lg">
-              HAWLHAYE brings institutional work into one organised
-              workspace. Assign responsibilities, follow progress, manage
-              approvals and build a clearer picture of the work that matters.
+              HAWLHAYE brings institutional work into one organised workspace. Assign
+              responsibilities, follow progress, manage approvals and build a clearer picture of the
+              work that matters.
             </p>
 
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
@@ -328,12 +323,8 @@ export default function Home() {
             <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-[#142b4a]/10">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                 <div>
-                  <p className="text-sm font-extrabold text-[#142b4a]">
-                    Workspace overview
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    HAWLHAYE · Task management
-                  </p>
+                  <p className="text-sm font-extrabold text-[#142b4a]">Workspace overview</p>
+                  <p className="mt-1 text-xs text-slate-500">HAWLHAYE · Task management</p>
                 </div>
                 <span className="rounded-lg bg-[#fff7e8] px-3 py-1.5 text-xs font-bold text-[#a1742c]">
                   Preview
@@ -354,9 +345,7 @@ export default function Home() {
                       className="mb-4 h-1.5 w-8 rounded-full"
                       style={{ backgroundColor: item.color }}
                     />
-                    <p className="text-2xl font-black text-[#142b4a]">
-                      {item.count}
-                    </p>
+                    <p className="text-2xl font-black text-[#142b4a]">{item.count}</p>
                     <p className="mt-1 text-[10px] font-medium text-slate-500 sm:text-xs">
                       {item.label}
                     </p>
@@ -366,12 +355,8 @@ export default function Home() {
 
               <div className="px-5 pb-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-bold text-[#142b4a]">
-                    Workflow snapshot
-                  </p>
-                  <span className="text-xs text-slate-400">
-                    Illustrative data
-                  </span>
+                  <p className="text-sm font-bold text-[#142b4a]">Workflow snapshot</p>
+                  <span className="text-xs text-slate-400">Illustrative data</span>
                 </div>
               </div>
 
@@ -411,12 +396,8 @@ export default function Home() {
                         <p className="text-[10px] font-bold tracking-wide text-slate-400">
                           {task.code}
                         </p>
-                        <p className="mt-1 text-sm font-bold text-[#142b4a]">
-                          {task.title}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {task.person}
-                        </p>
+                        <p className="mt-1 text-sm font-bold text-[#142b4a]">{task.title}</p>
+                        <p className="mt-1 text-xs text-slate-500">{task.person}</p>
                       </div>
                       <span
                         className={`shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold ${task.tone}`}
@@ -456,23 +437,19 @@ export default function Home() {
           </div>
           <div className="space-y-5 text-base leading-8 text-slate-600">
             <p>
-              HAWLHAYE is designed to help teams organise institutional tasks,
-              coordinate responsibilities and follow work from assignment
-              through review and completion.
+              HAWLHAYE is designed to help teams organise institutional tasks, coordinate
+              responsibilities and follow work from assignment through review and completion.
             </p>
             <p>
-              Its architecture separates the web interface, backend API,
-              shared workflow rules and database. This creates a foundation
-              for consistent permissions, controlled task transitions and
-              maintainable development.
+              Its architecture separates the web interface, backend API, shared workflow rules and
+              database. This creates a foundation for consistent permissions, controlled task
+              transitions and maintainable development.
             </p>
             <div className="rounded-2xl border border-[#ead9b4] bg-[#fffaf0] p-5">
-              <p className="font-bold text-[#142b4a]">
-                The project objective
-              </p>
+              <p className="font-bold text-[#142b4a]">The project objective</p>
               <p className="mt-2 text-sm leading-7 text-slate-600">
-                Make institutional work easier to assign, follow, review,
-                report and improve—with clear responsibilities at every stage.
+                Make institutional work easier to assign, follow, review, report and improve—with
+                clear responsibilities at every stage.
               </p>
             </div>
           </div>
@@ -489,8 +466,8 @@ export default function Home() {
             Everything connected to the work.
           </h2>
           <p className="mt-4 leading-7 text-slate-600">
-            A modular experience designed around tasks, people, approvals,
-            operational visibility and administration.
+            A modular experience designed around tasks, people, approvals, operational visibility
+            and administration.
           </p>
         </div>
 
@@ -504,20 +481,12 @@ export default function Home() {
                 <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#142b4a] text-2xl text-[#e8bc69] transition group-hover:bg-[#203e63]">
                   {feature.icon}
                 </span>
-                <span className="text-sm font-bold text-slate-300">
-                  {feature.number}
-                </span>
+                <span className="text-sm font-bold text-slate-300">{feature.number}</span>
               </div>
-              <h3 className="mt-6 text-lg font-extrabold text-[#142b4a]">
-                {feature.title}
-              </h3>
-              <p className="mt-3 text-sm leading-7 text-slate-600">
-                {feature.description}
-              </p>
+              <h3 className="mt-6 text-lg font-extrabold text-[#142b4a]">{feature.title}</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">{feature.description}</p>
               <div className="mt-6 border-t border-slate-100 pt-4">
-                <span className="text-xs font-bold text-[#a77a32]">
-                  {feature.tag}
-                </span>
+                <span className="text-xs font-bold text-[#a77a32]">{feature.tag}</span>
               </div>
             </article>
           ))}
@@ -535,9 +504,9 @@ export default function Home() {
               From an open task to a clear outcome.
             </h2>
             <p className="mt-4 leading-7 text-slate-300">
-              The application board is built from six shared workflow statuses.
-              This overview illustrates the stages; actual transitions are
-              governed by the application's workflow rules and permissions.
+              The application board is built from six shared workflow statuses. This overview
+              illustrates the stages; actual transitions are governed by the application's workflow
+              rules and permissions.
             </p>
           </div>
 
@@ -556,9 +525,7 @@ export default function Home() {
               >
                 <p className="text-sm font-black text-[#e8bc69]">{number}</p>
                 <h3 className="mt-6 font-extrabold">{title}</h3>
-                <p className="mt-2 text-xs leading-6 text-slate-300">
-                  {detail}
-                </p>
+                <p className="mt-2 text-xs leading-6 text-slate-300">{detail}</p>
               </div>
             ))}
           </div>
@@ -567,8 +534,8 @@ export default function Home() {
             <div>
               <p className="font-bold">A consistent set of workflow rules</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                Shared definitions live in packages/shared, rather than being
-                duplicated across the frontend and API.
+                Shared definitions live in packages/shared, rather than being duplicated across the
+                frontend and API.
               </p>
             </div>
             <Link
@@ -592,9 +559,8 @@ export default function Home() {
               A modular foundation.
             </h2>
             <p className="mt-4 leading-7 text-slate-600">
-              HAWLHAYE separates interface, business logic and persistence into
-              dedicated packages, making it easier for the team to develop and
-              maintain each part.
+              HAWLHAYE separates interface, business logic and persistence into dedicated packages,
+              making it easier for the team to develop and maintain each part.
             </p>
           </div>
 
@@ -608,24 +574,16 @@ export default function Home() {
                   0{index + 1}
                 </div>
                 <div className="min-w-0">
-                  <h3 className="font-extrabold text-[#142b4a]">
-                    {item.name}
-                  </h3>
-                  <code className="mt-1 block break-all text-xs text-[#a77a32]">
-                    {item.path}
-                  </code>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    {item.detail}
-                  </p>
+                  <h3 className="font-extrabold text-[#142b4a]">{item.name}</h3>
+                  <code className="mt-1 block break-all text-xs text-[#a77a32]">{item.path}</code>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">{item.detail}</p>
                 </div>
               </div>
             ))}
           </div>
 
           <div className="mt-8 rounded-2xl bg-[#f8fafc] p-5">
-            <p className="text-sm font-bold text-[#142b4a]">
-              Request lifecycle
-            </p>
+            <p className="text-sm font-bold text-[#142b4a]">Request lifecycle</p>
             <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-bold">
               {[
                 "Browser UI",
@@ -661,63 +619,84 @@ export default function Home() {
               Install HAWLHAYE and get started.
             </h2>
             <p className="mt-4 leading-7 text-slate-600">
-              Follow these steps to prepare your computer, start the frontend,
-              and open the project in your browser.
+              Follow these steps to prepare your computer, start the frontend, and open the project
+              in your browser.
             </p>
           </div>
 
           <div className="mt-10 grid gap-5 md:grid-cols-2">
             <article className="rounded-2xl border border-slate-200 bg-white p-6">
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f5f0e6] font-black text-[#a77a32]">01</span>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f5f0e6] font-black text-[#a77a32]">
+                  01
+                </span>
                 <h3 className="text-lg font-extrabold text-[#142b4a]">Install the tools</h3>
               </div>
               <p className="mt-4 text-sm leading-7 text-slate-600">
-                Install Node.js (LTS) and Visual Studio Code. Download or clone
-                the HAWLHAYE repository, then open the repository's root folder
-                in VS Code.
+                Install Node.js (LTS) and Visual Studio Code. Download or clone the HAWLHAYE
+                repository, then open the repository's root folder in VS Code.
               </p>
-              <a href="https://nodejs.org/" target="_blank" rel="noreferrer"
-                className="mt-4 inline-flex font-bold text-[#a77a32] hover:text-[#142b4a]">
-                Get Node.js <span aria-hidden="true" className="ml-2">→</span>
+              <a
+                href="https://nodejs.org/"
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 inline-flex font-bold text-[#a77a32] hover:text-[#142b4a]"
+              >
+                Get Node.js{" "}
+                <span aria-hidden="true" className="ml-2">
+                  →
+                </span>
               </a>
             </article>
 
             <article className="rounded-2xl border border-slate-200 bg-white p-6">
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f5f0e6] font-black text-[#a77a32]">02</span>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f5f0e6] font-black text-[#a77a32]">
+                  02
+                </span>
                 <h3 className="text-lg font-extrabold text-[#142b4a]">Install dependencies</h3>
               </div>
               <p className="mt-4 text-sm leading-7 text-slate-600">
-                Open the terminal in VS Code at the repository root (the folder
-                containing the main package.json), then run:
+                Open the terminal in VS Code at the repository root (the folder containing the main
+                package.json), then run:
               </p>
-              <pre className="mt-4 overflow-x-auto rounded-xl bg-[#142b4a] p-4 text-sm text-emerald-200"><code>npm ci</code></pre>
+              <pre className="mt-4 overflow-x-auto rounded-xl bg-[#142b4a] p-4 text-sm text-emerald-200">
+                <code>npm ci</code>
+              </pre>
             </article>
 
             <article className="rounded-2xl border border-slate-200 bg-white p-6">
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f5f0e6] font-black text-[#a77a32]">03</span>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f5f0e6] font-black text-[#a77a32]">
+                  03
+                </span>
                 <h3 className="text-lg font-extrabold text-[#142b4a]">Start the frontend</h3>
               </div>
               <p className="mt-4 text-sm leading-7 text-slate-600">
                 From the same repository root, start the Next.js web application:
               </p>
-              <pre className="mt-4 overflow-x-auto rounded-xl bg-[#142b4a] p-4 text-sm text-emerald-200"><code>npm run dev:web</code></pre>
+              <pre className="mt-4 overflow-x-auto rounded-xl bg-[#142b4a] p-4 text-sm text-emerald-200">
+                <code>npm run dev:web</code>
+              </pre>
               <p className="mt-4 text-sm leading-7 text-slate-600">
-                Then open <code className="rounded bg-slate-100 px-1.5 py-1 text-[#142b4a]">http://localhost:3000</code> in your browser.
+                Then open{" "}
+                <code className="rounded bg-slate-100 px-1.5 py-1 text-[#142b4a]">
+                  http://localhost:3000
+                </code>{" "}
+                in your browser.
               </p>
             </article>
 
             <article className="rounded-2xl border border-slate-200 bg-white p-6">
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f5f0e6] font-black text-[#a77a32]">04</span>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f5f0e6] font-black text-[#a77a32]">
+                  04
+                </span>
                 <h3 className="text-lg font-extrabold text-[#142b4a]">Check that it is running</h3>
               </div>
               <p className="mt-4 text-sm leading-7 text-slate-600">
-                Keep the terminal open while developing. Next.js normally refreshes
-                the page after you save changes. Press Ctrl+C in the terminal to stop
-                the development server.
+                Keep the terminal open while developing. Next.js normally refreshes the page after
+                you save changes. Press Ctrl+C in the terminal to stop the development server.
               </p>
             </article>
           </div>
@@ -725,10 +704,17 @@ export default function Home() {
           <div className="mt-6 rounded-2xl border border-[#ead9b4] bg-[#fffaf0] p-6">
             <h3 className="font-extrabold text-[#142b4a]">If installation does not work</h3>
             <ul className="mt-3 space-y-2 text-sm leading-7 text-slate-600">
-              <li>• Check Node.js and npm with <code>node -v</code> and <code>npm -v</code>.</li>
+              <li>
+                • Check Node.js and npm with <code>node -v</code> and <code>npm -v</code>.
+              </li>
               <li>• Make sure you are running commands from the repository root.</li>
-              <li>• If the dev command is not recognised, check the scripts in the root package.json.</li>
-              <li>• If port 3000 is already in use, use the alternative local address printed in the terminal.</li>
+              <li>
+                • If the dev command is not recognised, check the scripts in the root package.json.
+              </li>
+              <li>
+                • If port 3000 is already in use, use the alternative local address printed in the
+                terminal.
+              </li>
             </ul>
           </div>
         </div>
@@ -745,9 +731,8 @@ export default function Home() {
               Add a page in a few simple steps.
             </h2>
             <p className="mt-4 leading-7 text-slate-600">
-              HAWLHAYE uses the Next.js App Router. A folder containing a
-              page.tsx file creates a route. For example, a help page can live
-              inside the existing application route group.
+              HAWLHAYE uses the Next.js App Router. A folder containing a page.tsx file creates a
+              route. For example, a help page can live inside the existing application route group.
             </p>
           </div>
 
@@ -757,13 +742,15 @@ export default function Home() {
               <p className="mt-3 text-sm leading-7 text-slate-600">
                 In VS Code, create this folder and file under apps/web:
               </p>
-              <pre className="mt-4 overflow-x-auto rounded-xl bg-[#142b4a] p-5 text-sm leading-7 text-emerald-200"><code>{`app/
+              <pre className="mt-4 overflow-x-auto rounded-xl bg-[#142b4a] p-5 text-sm leading-7 text-emerald-200">
+                <code>{`app/
   (app)/
     help/
-      page.tsx`}</code></pre>
+      page.tsx`}</code>
+              </pre>
               <p className="mt-4 text-sm leading-7 text-slate-600">
-                The (app) folder is a route group, so it does not appear in the
-                URL. This page's route is <code>/help</code>.
+                The (app) folder is a route group, so it does not appear in the URL. This page's
+                route is <code>/help</code>.
               </p>
             </div>
 
@@ -772,7 +759,8 @@ export default function Home() {
               <p className="mt-3 text-sm leading-7 text-slate-600">
                 Put this starter component inside the new page.tsx file:
               </p>
-              <pre className="mt-4 overflow-x-auto rounded-xl bg-[#142b4a] p-5 text-sm leading-7 text-slate-100"><code>{`export default function HelpPage() {
+              <pre className="mt-4 overflow-x-auto rounded-xl bg-[#142b4a] p-5 text-sm leading-7 text-slate-100">
+                <code>{`export default function HelpPage() {
   return (
     <main className="p-8">
       <h1 className="text-3xl font-bold">
@@ -783,17 +771,17 @@ export default function Home() {
       </p>
     </main>
   );
-}`}</code></pre>
+}`}</code>
+              </pre>
             </div>
           </div>
 
           <div className="mt-6 rounded-2xl bg-[#f8fafc] p-6">
             <h3 className="font-extrabold text-[#142b4a]">Step 3 — Open and test it</h3>
             <p className="mt-2 text-sm leading-7 text-slate-600">
-              Save the file and visit <code>http://localhost:3000/help</code>.
-              If the page is inside <code>app/(app)/</code>, check the existing
-              application layout, authentication rules, and navigation menu.
-              A new page creates the screen and URL; it does not automatically
+              Save the file and visit <code>http://localhost:3000/help</code>. If the page is inside{" "}
+              <code>app/(app)/</code>, check the existing application layout, authentication rules,
+              and navigation menu. A new page creates the screen and URL; it does not automatically
               connect the screen to the API or database.
             </p>
           </div>
@@ -811,9 +799,8 @@ export default function Home() {
               What to expect as you build.
             </h2>
             <p className="mt-4 leading-7 text-slate-600">
-              The website interface, API, shared rules, and database are separate
-              parts of the project. A visible page does not necessarily mean every
-              feature behind it is complete.
+              The website interface, API, shared rules, and database are separate parts of the
+              project. A visible page does not necessarily mean every feature behind it is complete.
             </p>
           </div>
 
@@ -821,26 +808,24 @@ export default function Home() {
             <article className="rounded-2xl border border-slate-200 bg-white p-6">
               <h3 className="text-lg font-extrabold text-[#142b4a]">Frontend pages</h3>
               <p className="mt-3 text-sm leading-7 text-slate-600">
-                Pages and components define what users see. Some routes may still
-                be starter screens or planned files, so check the file status guide
-                below before assuming a screen is complete.
+                Pages and components define what users see. Some routes may still be starter screens
+                or planned files, so check the file status guide below before assuming a screen is
+                complete.
               </p>
             </article>
             <article className="rounded-2xl border border-slate-200 bg-white p-6">
               <h3 className="text-lg font-extrabold text-[#142b4a]">API and database</h3>
               <p className="mt-3 text-sm leading-7 text-slate-600">
-                Saving tasks, signing in, enforcing permissions, and producing
-                live reports require working backend endpoints and database
-                configuration. Installing frontend packages does not set these up
-                automatically.
+                Saving tasks, signing in, enforcing permissions, and producing live reports require
+                working backend endpoints and database configuration. Installing frontend packages
+                does not set these up automatically.
               </p>
             </article>
             <article className="rounded-2xl border border-slate-200 bg-white p-6">
               <h3 className="text-lg font-extrabold text-[#142b4a]">Build and test gradually</h3>
               <p className="mt-3 text-sm leading-7 text-slate-600">
-                Add one page or feature at a time. Test the route, check the
-                browser and terminal for errors, and verify API and database
-                behavior before relying on the feature.
+                Add one page or feature at a time. Test the route, check the browser and terminal
+                for errors, and verify API and database behavior before relying on the feature.
               </p>
             </article>
           </div>
@@ -848,10 +833,10 @@ export default function Home() {
           <div className="mt-6 rounded-2xl border border-[#ead9b4] bg-[#fffaf0] p-6">
             <p className="font-extrabold text-[#142b4a]">A useful rule</p>
             <p className="mt-2 text-sm leading-7 text-slate-600">
-              Keep existing code and styling when adding a feature. Reuse shared
-              components where possible, keep workflow rules in the shared package
-              when appropriate, and enforce important permissions on the backend
-              rather than relying only on hiding frontend buttons.
+              Keep existing code and styling when adding a feature. Reuse shared components where
+              possible, keep workflow rules in the shared package when appropriate, and enforce
+              important permissions on the backend rather than relying only on hiding frontend
+              buttons.
             </p>
           </div>
         </div>
@@ -868,8 +853,8 @@ export default function Home() {
               Know where every frontend file belongs.
             </h2>
             <p className="mt-4 leading-7 text-slate-600">
-              A practical map of the web application: pages, reusable
-              components, API helpers and static assets.
+              A practical map of the web application: pages, reusable components, API helpers and
+              static assets.
             </p>
           </div>
 
@@ -885,9 +870,7 @@ export default function Home() {
           <div className="flex flex-col gap-3 border-b border-slate-200 bg-[#f8fafc] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div>
               <p className="font-extrabold text-[#142b4a]">Frontend file reference</p>
-              <p className="mt-1 text-xs text-slate-500">
-                Root: apps/web/
-              </p>
+              <p className="mt-1 text-xs text-slate-500">Root: apps/web/</p>
             </div>
             <span className="w-fit rounded-lg bg-[#142b4a] px-3 py-2 text-xs font-bold text-white">
               Next.js App Router
@@ -904,17 +887,12 @@ export default function Home() {
                   <code className="break-all text-xs font-bold text-[#a77a32] sm:text-sm">
                     {file.path}
                   </code>
-                  <p className="mt-1 text-sm font-extrabold text-[#142b4a]">
-                    {file.name}
-                  </p>
+                  <p className="mt-1 text-sm font-extrabold text-[#142b4a]">{file.name}</p>
                 </div>
-                <p className="text-sm leading-6 text-slate-500">
-                  {file.detail}
-                </p>
+                <p className="text-sm leading-6 text-slate-500">{file.detail}</p>
                 <span
                   className={`w-fit rounded-md px-2.5 py-1 text-[10px] font-bold ${
-                    file.status === "Existing" ||
-                    file.status === "Current file"
+                    file.status === "Existing" || file.status === "Current file"
                       ? "bg-emerald-50 text-emerald-700"
                       : file.status === "Scaffold"
                         ? "bg-blue-50 text-blue-700"
@@ -928,9 +906,9 @@ export default function Home() {
           </div>
 
           <div className="border-t border-slate-200 bg-[#f8fafc] px-5 py-4 text-xs leading-6 text-slate-500 sm:px-6">
-            File statuses reflect the supplied project guide. Planned entries
-            and folders to create are part of the target structure and should
-            not be interpreted as already implemented files.
+            File statuses reflect the supplied project guide. Planned entries and folders to create
+            are part of the target structure and should not be interpreted as already implemented
+            files.
           </div>
         </div>
       </section>
@@ -950,8 +928,7 @@ export default function Home() {
                 Bring clarity to the work that matters.
               </h2>
               <p className="mt-5 max-w-xl leading-7 text-slate-300">
-                Explore the HAWLHAYE workspace and its task-management
-                interface.
+                Explore the HAWLHAYE workspace and its task-management interface.
               </p>
             </div>
 
@@ -969,9 +946,7 @@ export default function Home() {
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 sm:px-8 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="font-extrabold tracking-[0.14em] text-[#142b4a]">
-              HAWLHAYE
-            </p>
+            <p className="font-extrabold tracking-[0.14em] text-[#142b4a]">HAWLHAYE</p>
             <p className="mt-1 text-xs text-slate-500">
               An institutional task and workflow management project.
             </p>
@@ -990,9 +965,7 @@ export default function Home() {
               Workspace
             </Link>
           </div>
-          <p className="text-xs text-slate-400">
-            © 2026 HAWLHAYE · CECIT
-          </p>
+          <p className="text-xs text-slate-400">© 2026 HAWLHAYE · CECIT</p>
         </div>
       </footer>
     </main>
