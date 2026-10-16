@@ -3,7 +3,6 @@ const nextConfig = {
   output: "standalone",
   poweredByHeader: false,
   transpilePackages: ["@hawl/shared"],
-  eslint: { ignoreDuringBuilds: true }, // linting runs at the repo root (npm run lint)
   async headers() {
     return [
       {
