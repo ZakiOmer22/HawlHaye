@@ -1,0 +1,37 @@
+# Production-like stack (UNTESTED scaffold - Ridwan to finish and test on staging, Day 1-2).
+# Only Caddy publishes ports. Database is never reachable from the internet.
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      HAWL_DOMAIN: ${HAWL_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [web, api]
+  web:
+    build: { context: .., dockerfile: infra/Dockerfile.web }
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: https://${HAWL_DOMAIN}
+  api:
+    build: { context: .., dockerfile: infra/Dockerfile.api }
+    restart: unless-stopped
+    env_file: ../.env
+    depends_on:
+      db: { condition: service_healthy }
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: ../.env
+    volumes: [hawl_db:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+volumes:
+  caddy_data:
+  hawl_db:

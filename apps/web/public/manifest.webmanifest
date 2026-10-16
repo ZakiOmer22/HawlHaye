@@ -1,0 +1,9 @@
+{
+  "name": "HAWL - CECIT Task Management",
+  "short_name": "HAWL",
+  "start_url": "/board",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#0A1628",
+  "icons": []
+}

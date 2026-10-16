@@ -1,0 +1,14 @@
+# Local development database only. Run: docker compose -f infra/docker-compose.dev.yml up -d
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hawl}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-hawl}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - hawl_dev_db:/var/lib/postgresql/data
+volumes:
+  hawl_dev_db:

@@ -1,0 +1,209 @@
+// DRAFT v0 - owner: Abdiqadir Ibrahim (review: Zacki). Validate with `npx prisma validate` once Prisma is installed.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  DEAN
+  DEPUTY
+  FACULTY_COORDINATOR
+  LABS_COORDINATOR
+  ADMINISTRATOR
+  LAB_TECHNICIAN
+}
+
+enum TaskStatus {
+  UNASSIGNED
+  ASSIGNED
+  IN_PROGRESS
+  BLOCKED
+  REVIEW
+  COMPLETED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum OfficeType {
+  FACULTY
+  LABS
+  ADMINISTRATION
+}
+
+model Office {
+  id     String     @id @default(cuid())
+  name   String     @unique
+  type   OfficeType
+  active Boolean    @default(true)
+  users  User[]
+  tasks  Task[]
+}
+
+model Category {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  color  String?
+  active Boolean @default(true)
+  tasks  Task[]
+}
+
+model User {
+  id                 String       @id @default(cuid())
+  email              String       @unique
+  fullName           String
+  passwordHash       String?
+  role               Role
+  officeId           String?
+  office             Office?      @relation(fields: [officeId], references: [id])
+  active             Boolean      @default(true)
+  inviteTokenHash    String?
+  inviteExpiresAt    DateTime?
+  lastLoginAt        DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  ownedTasks         Task[]       @relation("TaskOwner")
+  assignedTasks      Task[]       @relation("TaskAssigner")
+  createdTasks       Task[]       @relation("TaskCreator")
+  delegationsGot     Delegation[] @relation("DelegationDelegate")
+  delegationsMade    Delegation[] @relation("DelegationBy")
+  comments           Comment[]
+  attachments        Attachment[]
+  events             TaskEvent[]
+  auditLogs          AuditLog[]
+  sessions           Session[]
+}
+
+model Task {
+  id           String       @id @default(cuid())
+  code         String       @unique // CECIT-YYYY-NNN, generated in a transaction
+  title        String
+  description  String?
+  categoryId   String
+  category     Category     @relation(fields: [categoryId], references: [id])
+  officeId     String
+  office       Office       @relation(fields: [officeId], references: [id])
+  priority     Priority     @default(MEDIUM)
+  status       TaskStatus   @default(UNASSIGNED)
+  ownerId      String?
+  owner        User?        @relation("TaskOwner", fields: [ownerId], references: [id])
+  assignedById String?
+  assignedBy   User?        @relation("TaskAssigner", fields: [assignedById], references: [id])
+  createdById  String
+  createdBy    User         @relation("TaskCreator", fields: [createdById], references: [id])
+  dueDate      DateTime?
+  completedAt  DateTime?
+  cancelledAt  DateTime?
+  cancelReason String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  delegations  Delegation[]
+  comments     Comment[]
+  attachments  Attachment[]
+  events       TaskEvent[]
+
+  @@index([status])
+  @@index([ownerId, status])
+  @@index([officeId, status])
+  @@index([categoryId])
+  @@index([dueDate])
+}
+
+model Delegation {
+  id            String    @id @default(cuid())
+  taskId        String
+  task          Task      @relation(fields: [taskId], references: [id])
+  delegateId    String
+  delegate      User      @relation("DelegationDelegate", fields: [delegateId], references: [id])
+  delegatedById String
+  delegatedBy   User      @relation("DelegationBy", fields: [delegatedById], references: [id])
+  createdAt     DateTime  @default(now())
+  endedAt       DateTime?
+
+  @@index([taskId])
+  @@index([delegateId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id])
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+}
+
+model Attachment {
+  id           String   @id @default(cuid())
+  taskId       String
+  task         Task     @relation(fields: [taskId], references: [id])
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  storageKey   String   @unique // random name, never the original file name
+  createdAt    DateTime @default(now())
+
+  @@index([taskId])
+}
+
+/// Append-only history of task changes. No update or delete routes.
+model TaskEvent {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id])
+  actorId   String
+  actor     User     @relation(fields: [actorId], references: [id])
+  type      String
+  fromValue String?
+  toValue   String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+}
+
+/// Security and system events: logins, failed logins, role changes, exports.
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id])
+  action    String
+  ip        String?
+  userAgent String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  @@index([userId])
+}
+
+model TaskCodeSequence {
+  year    Int @id
+  lastSeq Int @default(0)
+}

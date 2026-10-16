@@ -1,0 +1,9 @@
+# Replace @ZakiOmer22 with real GitHub handles when the team has joined the organisation.
+*                      @ZakiOmer22
+/apps/api/src/middleware/  @ZakiOmer22
+/apps/api/src/modules/auth/ @ZakiOmer22
+/packages/shared/      @ZakiOmer22
+/infra/                @ZakiOmer22
+# /apps/api/prisma/    @abdiqadir-handle @ZakiOmer22
+# /apps/web/           @maxamed-omer-handle
+# /infra/              @ridwan-handle @ZakiOmer22

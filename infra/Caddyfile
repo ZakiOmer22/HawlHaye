@@ -1,0 +1,16 @@
+{$HAWL_DOMAIN} {
+  encode gzip
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    -Server
+  }
+  handle /api/* {
+    reverse_proxy api:4000
+  }
+  handle /health {
+    reverse_proxy api:4000
+  }
+  handle {
+    reverse_proxy web:3000
+  }
+}
