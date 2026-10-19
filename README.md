@@ -4,7 +4,7 @@
 
 A secure, mobile-friendly Kanban system with multiple categories, a six-stage workflow with leadership approval, and reports on both the work and the system itself.
 
-> Status: Day 1 scaffold. Rights reserved until the ownership agreement with the University is signed.
+> Status: Day 1 scaffold. Rights reserved until the final questions from last day is completed.
 
 ## Quick start
 
