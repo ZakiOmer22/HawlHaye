@@ -6,10 +6,13 @@ const schema = z.object({
   WEB_ORIGIN: z.string().url(),
   DATABASE_URL: z.string().min(1),
   SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters"),
+  SESSION_TTL_HOURS: z.coerce.number().int().positive().default(8),
+  INVITE_TTL_HOURS: z.coerce.number().int().positive().default(48),
+  LOGIN_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
+  LOGIN_LOCKOUT_MINUTES: z.coerce.number().int().positive().default(15),
 });
 export type Env = z.infer<typeof schema>;
 
-/** In production every variable must be set explicitly. Outside production, safe local defaults apply. */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const isProd = source.NODE_ENV === "production";
   const withDefaults = isProd
@@ -22,3 +25,5 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       };
   return schema.parse(withDefaults);
 }
+
+export const env: Env = loadEnv();

@@ -1,4 +1,13 @@
-// DRAFT v0 - owner: Abdiqadir Ibrahim (review: Zacki). Validate with `npx prisma validate` once Prisma is installed.
+// HAWL — University of Hargeisa / CECIT
+// DRAFT v1 — owner: Abdiqadir Ibrahim (review: Zacki)
+// Changes from v0: blockedReason, soft delete, delegation status,
+// audit entity columns, Invite table, explicit onDelete, timestamps, indexes.
+//
+// BEFORE `migrate dev --name init`, confirm the three enums below match
+// packages/shared/src/roles.ts and status.ts EXACTLY. They are the one
+// thing that will break the web app and API if they disagree.
+// Validate with: npx prisma validate && npx prisma format
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,6 +16,10 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// ─────────────────────────────────────────────────────────────
+// Enums — must mirror packages/shared
+// ─────────────────────────────────────────────────────────────
 
 enum Role {
   DEAN
@@ -39,171 +52,269 @@ enum OfficeType {
   ADMINISTRATION
 }
 
+enum DelegationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+// ─────────────────────────────────────────────────────────────
+// Reference tables
+// ─────────────────────────────────────────────────────────────
+
 model Office {
-  id     String     @id @default(cuid())
-  name   String     @unique
-  type   OfficeType
-  active Boolean    @default(true)
-  users  User[]
-  tasks  Task[]
+  id        String     @id @default(cuid())
+  name      String     @unique
+  type      OfficeType
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  users     User[]
+  tasks     Task[]
+  invites   Invite[]
+
+  @@index([type])
+  @@map("offices")
 }
 
 model Category {
-  id     String  @id @default(cuid())
-  name   String  @unique
-  color  String?
-  active Boolean @default(true)
-  tasks  Task[]
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tasks     Task[]
+
+  @@map("categories")
 }
 
 model User {
-  id                 String       @id @default(cuid())
-  email              String       @unique
-  fullName           String
-  passwordHash       String?
-  role               Role
-  officeId           String?
-  office             Office?      @relation(fields: [officeId], references: [id])
-  active             Boolean      @default(true)
-  inviteTokenHash    String?
-  inviteExpiresAt    DateTime?
-  lastLoginAt        DateTime?
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-  ownedTasks         Task[]       @relation("TaskOwner")
-  assignedTasks      Task[]       @relation("TaskAssigner")
-  createdTasks       Task[]       @relation("TaskCreator")
-  delegationsGot     Delegation[] @relation("DelegationDelegate")
-  delegationsMade    Delegation[] @relation("DelegationBy")
-  comments           Comment[]
-  attachments        Attachment[]
-  events             TaskEvent[]
-  auditLogs          AuditLog[]
-  sessions           Session[]
+  id            String    @id @default(cuid())
+  email         String    @unique
+  fullName      String
+  passwordHash  String? // null until an invite is accepted
+  role          Role
+  officeId      String?
+  office        Office?   @relation(fields: [officeId], references: [id], onDelete: SetNull)
+  active        Boolean   @default(true)
+  deactivatedAt DateTime?
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  ownedTasks      Task[]       @relation("TaskOwner")
+  assignedTasks   Task[]       @relation("TaskAssigner")
+  createdTasks    Task[]       @relation("TaskCreator")
+  delegationsGot  Delegation[] @relation("DelegationDelegate")
+  delegationsMade Delegation[] @relation("DelegationBy")
+  comments        Comment[]
+  attachments     Attachment[]
+  events          TaskEvent[]
+  auditLogs       AuditLog[]
+  sessions        Session[]
+  invitesSent     Invite[]     @relation("InviteInviter")
+
+  @@index([role])
+  @@index([officeId])
+  @@index([active])
+  @@map("users")
 }
 
+// ─────────────────────────────────────────────────────────────
+// Tasks
+// ─────────────────────────────────────────────────────────────
+
 model Task {
-  id           String       @id @default(cuid())
-  code         String       @unique // CECIT-YYYY-NNN, generated in a transaction
-  title        String
-  description  String?
-  categoryId   String
-  category     Category     @relation(fields: [categoryId], references: [id])
-  officeId     String
-  office       Office       @relation(fields: [officeId], references: [id])
-  priority     Priority     @default(MEDIUM)
-  status       TaskStatus   @default(UNASSIGNED)
+  id          String     @id @default(cuid())
+  code        String     @unique // CECIT-YYYY-NNN, generated in a transaction
+  title       String
+  description String?
+  categoryId  String
+  category    Category   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  officeId    String
+  office      Office     @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  priority    Priority   @default(MEDIUM)
+  status      TaskStatus @default(UNASSIGNED)
+
   ownerId      String?
-  owner        User?        @relation("TaskOwner", fields: [ownerId], references: [id])
+  owner        User?   @relation("TaskOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   assignedById String?
-  assignedBy   User?        @relation("TaskAssigner", fields: [assignedById], references: [id])
+  assignedBy   User?   @relation("TaskAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
   createdById  String
-  createdBy    User         @relation("TaskCreator", fields: [createdById], references: [id])
-  dueDate      DateTime?
-  completedAt  DateTime?
-  cancelledAt  DateTime?
-  cancelReason String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  delegations  Delegation[]
-  comments     Comment[]
-  attachments  Attachment[]
-  events       TaskEvent[]
+  createdBy    User    @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  dueDate       DateTime?
+  blockedReason String? // set when status = BLOCKED, cleared on move out
+  completedAt   DateTime?
+  cancelledAt   DateTime?
+  cancelReason  String?
+  deletedAt     DateTime? // soft delete; every query filters deletedAt: null
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  delegations Delegation[]
+  comments    Comment[]
+  attachments Attachment[]
+  events      TaskEvent[]
 
   @@index([status])
   @@index([ownerId, status])
   @@index([officeId, status])
   @@index([categoryId])
   @@index([dueDate])
+  @@index([status, dueDate])
+  @@index([deletedAt])
+  @@map("tasks")
 }
 
 model Delegation {
-  id            String    @id @default(cuid())
+  id            String           @id @default(cuid())
   taskId        String
-  task          Task      @relation(fields: [taskId], references: [id])
+  task          Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
   delegateId    String
-  delegate      User      @relation("DelegationDelegate", fields: [delegateId], references: [id])
+  delegate      User             @relation("DelegationDelegate", fields: [delegateId], references: [id], onDelete: Restrict)
   delegatedById String
-  delegatedBy   User      @relation("DelegationBy", fields: [delegatedById], references: [id])
-  createdAt     DateTime  @default(now())
+  delegatedBy   User             @relation("DelegationBy", fields: [delegatedById], references: [id], onDelete: Restrict)
+  reason        String?
+  status        DelegationStatus @default(PENDING)
+  respondedAt   DateTime?
   endedAt       DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   @@index([taskId])
-  @@index([delegateId])
+  @@index([delegateId, status])
+  @@index([delegatedById])
+  @@map("delegations")
 }
 
 model Comment {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   taskId    String
-  task      Task     @relation(fields: [taskId], references: [id])
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Restrict)
   body      String
-  createdAt DateTime @default(now())
+  editedAt  DateTime?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  @@index([taskId])
+  @@index([taskId, createdAt])
+  @@index([authorId])
+  @@map("comments")
 }
 
 model Attachment {
   id           String   @id @default(cuid())
   taskId       String
-  task         Task     @relation(fields: [taskId], references: [id])
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   uploadedById String
-  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
-  fileName     String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  fileName     String // original name, shown to users
   mimeType     String
   sizeBytes    Int
-  storageKey   String   @unique // random name, never the original file name
+  storageKey   String   @unique // random name on disk, never the original
   createdAt    DateTime @default(now())
 
   @@index([taskId])
+  @@map("attachments")
 }
 
-/// Append-only history of task changes. No update or delete routes.
+// ─────────────────────────────────────────────────────────────
+// Append-only history and audit
+// No update or delete routes exist for these two tables.
+// Day 5: REVOKE UPDATE, DELETE on both for the API's DB user.
+// ─────────────────────────────────────────────────────────────
+
 model TaskEvent {
   id        String   @id @default(cuid())
   taskId    String
-  task      Task     @relation(fields: [taskId], references: [id])
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   actorId   String
-  actor     User     @relation(fields: [actorId], references: [id])
-  type      String
+  actor     User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  type      String // CREATED, ASSIGNED, STATUS_CHANGED, ... see docs/workflow.md
   fromValue String?
   toValue   String?
   note      String?
   createdAt DateTime @default(now())
 
   @@index([taskId, createdAt])
+  @@index([actorId])
+  @@index([type])
+  @@map("task_events")
 }
 
-/// Security and system events: logins, failed logins, role changes, exports.
 model AuditLog {
-  id        String   @id @default(cuid())
-  actorId   String?
-  actor     User?    @relation(fields: [actorId], references: [id])
-  action    String
-  ip        String?
-  userAgent String?
-  meta      Json?
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String // user.deactivate, task.cancel, report.export, auth.login ...
+  entityType String? // "Task", "User", "Office"
+  entityId   String?
+  ip         String?
+  userAgent  String?
+  meta       Json?
+  createdAt  DateTime @default(now())
 
   @@index([action, createdAt])
   @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
+
+// ─────────────────────────────────────────────────────────────
+// Sessions and invites (storage only — logic lives in the API)
+// ─────────────────────────────────────────────────────────────
 
 model Session {
   id         String    @id @default(cuid())
   userId     String
-  user       User      @relation(fields: [userId], references: [id])
-  tokenHash  String    @unique
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique // never the raw token
   createdAt  DateTime  @default(now())
   lastSeenAt DateTime  @default(now())
   expiresAt  DateTime
   revokedAt  DateTime?
+  ip         String?
+  userAgent  String?
 
   @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
 }
 
+model Invite {
+  id          String    @id @default(cuid())
+  email       String
+  role        Role
+  officeId    String?
+  office      Office?   @relation(fields: [officeId], references: [id], onDelete: SetNull)
+  invitedById String
+  invitedBy   User      @relation("InviteInviter", fields: [invitedById], references: [id], onDelete: Restrict)
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+  @@map("invites")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Task code sequence — lock this row inside the create transaction
+// ─────────────────────────────────────────────────────────────
+
 model TaskCodeSequence {
-  year    Int @id
-  lastSeq Int @default(0)
+  year      Int      @id
+  lastSeq   Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@map("task_code_sequences")
 }

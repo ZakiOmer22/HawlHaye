@@ -1,11 +1,16 @@
-import type { Role } from "@hawl/shared";
+import type { Role } from "@prisma/client";
 
 declare global {
   namespace Express {
     interface Request {
-      /** Set by the session middleware (Zacki, Day 2). */
-      user?: { id: string; role: Role; officeId: string | null };
+      user?: {
+        id: string;
+        email: string;
+        role: Role;
+        officeId: string | null;
+      };
     }
   }
 }
+
 export {};
