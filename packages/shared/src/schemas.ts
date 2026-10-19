@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { PRIORITIES, TASK_STATUSES } from "./status";
 
-export const loginSchema = z.object({
-  email: z.string().email().max(254),
-  password: z.string().min(1).max(200),
-});
+export const loginSchema = z
+  .object({
+    email: z.string().email().max(254),
+    password: z.string().min(1).max(200),
+  })
+  .strict();
 
 export const createTaskSchema = z
   .object({
@@ -36,7 +38,15 @@ export const transitionSchema = z
     path: ["reason"],
   });
 
+export const createOfficeSchema = z
+  .object({
+    name: z.string().trim().min(2).max(100),
+    type: z.enum(["FACULTY", "LABS", "ADMINISTRATION"]),
+  })
+  .strict();
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type AssignTaskInput = z.infer<typeof assignTaskSchema>;
 export type TransitionInput = z.infer<typeof transitionSchema>;
+export type CreateOfficeInput = z.infer<typeof createOfficeSchema>;

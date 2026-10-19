@@ -20,8 +20,13 @@ describe("api skeleton", () => {
     const res = await request(app).get("/nope");
     expect(res.status).toBe(404);
   });
-  it("modules are stubbed until implemented", async () => {
+  it("protects authenticated modules behind auth", async () => {
     const res = await request(app).get("/api/v1/tasks");
+    expect(res.status).toBe(401);
+  });
+  it("still stubs modules that are not yet implemented", async () => {
+    const res = await request(app).get("/api/v1/attachments");
     expect(res.status).toBe(501);
+    expect(res.body.error).toBe("not_implemented");
   });
 });
