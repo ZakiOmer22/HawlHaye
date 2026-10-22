@@ -45,8 +45,20 @@ export const createOfficeSchema = z
   })
   .strict();
 
+// Added this to support the Admin Categories page
+export const createCategorySchema = z
+  .object({
+    name: z.string().trim().min(2).max(80),
+    color: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/, "Color must be a valid hex code like #e8bc69")
+      .optional(),
+  })
+  .strict();
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type AssignTaskInput = z.infer<typeof assignTaskSchema>;
 export type TransitionInput = z.infer<typeof transitionSchema>;
 export type CreateOfficeInput = z.infer<typeof createOfficeSchema>;
+export type CreateCategoryInput = z.infer<typeof createCategorySchema>;

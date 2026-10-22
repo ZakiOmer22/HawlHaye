@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
+import { logger } from "../lib/logger";
 
 export class HttpError extends Error {
   constructor(
@@ -8,20 +9,16 @@ export class HttpError extends Error {
     public code = "error",
   ) {
     super(message);
+    this.name = "HttpError";
   }
 }
 
 export function notFound(_req: Request, res: Response): void {
-  res.status(404).json({ error: "not_found" });
+  res.status(404).json({ error: "not_found", message: "Route not found" });
 }
 
-/** Never leak stack traces or internals to the client. */
-export function errorHandler(
-  err: unknown,
-  _req: Request,
-  res: Response,
-  _next: NextFunction,
-): void {
+export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {
+  // 1. Validation Errors (Zod)
   if (err instanceof ZodError) {
     res.status(400).json({
       error: "validation_failed",
@@ -29,10 +26,16 @@ export function errorHandler(
     });
     return;
   }
+
+  // 2. Expected App Errors (HttpError)
   if (err instanceof HttpError) {
     res.status(err.status).json({ error: err.code, message: err.message });
     return;
   }
-  console.error("Unhandled error", err instanceof Error ? err.message : err);
-  res.status(500).json({ error: "internal_error" });
+
+  // 3. Unexpected Errors (Database crash, code bug, etc.)
+  logger.error({ err, path: req.path, method: req.method }, "Unhandled server error");
+
+  // Never leak the raw error to the client
+  res.status(500).json({ error: "internal_error", message: "An unexpected error occurred." });
 }

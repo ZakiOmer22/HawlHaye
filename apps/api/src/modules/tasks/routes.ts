@@ -1,6 +1,10 @@
 import { Router, type Request } from "express";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
+import multer from "multer";
+import path from "path";
+import crypto from "crypto";
+import fs from "fs";
 import { createTaskSchema, assignTaskSchema, transitionSchema } from "@hawl/shared";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler } from "../../middleware/async";
@@ -23,6 +27,38 @@ function pathParam(req: Request, name: string): string {
   if (!value) throw new HttpError(400, `Missing ${name}`, "invalid_request");
   return value;
 }
+
+// ── File Upload Configuration ──────────────────────────────────
+const UPLOAD_DIR = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const randomName = crypto.randomBytes(16).toString("hex");
+    cb(null, `${randomName}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error("Invalid file type. Only images, PDFs, and Office documents are allowed."));
+  },
+});
 
 export const tasksRouter = Router();
 tasksRouter.use(requireAuth);
@@ -280,6 +316,78 @@ tasksRouter.get(
       include: { author: { select: { id: true, fullName: true } } },
     });
     res.json({ data });
+  }),
+);
+
+// ── ATTACHMENTS ────────────────────────────────────────────────
+
+tasksRouter.post(
+  "/:id/attachments",
+  upload.single("file"),
+  asyncHandler(async (req, res) => {
+    const id = pathParam(req, "id");
+    const task = await prisma.task.findUnique({ where: { id } });
+    if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
+    if (!canAccessTask(req.user!, task)) throw new HttpError(403, "Forbidden", "forbidden");
+    if (!req.file) throw new HttpError(400, "No file uploaded", "invalid_request");
+
+    const attachment = await prisma.$transaction(async (tx) => {
+      const a = await tx.attachment.create({
+        data: {
+          taskId: id,
+          uploadedById: req.user!.id,
+          fileName: req.file!.originalname,
+          mimeType: req.file!.mimetype,
+          sizeBytes: req.file!.size,
+          storageKey: req.file!.filename,
+        },
+      });
+      await tx.taskEvent.create({
+        data: { taskId: id, actorId: req.user!.id, type: "ATTACHED", note: req.file!.originalname },
+      });
+      return a;
+    });
+
+    res.status(201).json({ data: attachment });
+  }),
+);
+
+tasksRouter.get(
+  "/:id/attachments",
+  asyncHandler(async (req, res) => {
+    const id = pathParam(req, "id");
+    const task = await prisma.task.findUnique({ where: { id } });
+    if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
+    if (!canAccessTask(req.user!, task)) throw new HttpError(403, "Forbidden", "forbidden");
+
+    const data = await prisma.attachment.findMany({
+      where: { taskId: id },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json({ data });
+  }),
+);
+
+tasksRouter.get(
+  "/:id/attachments/:attachmentId/download",
+  asyncHandler(async (req, res) => {
+    const id = pathParam(req, "id");
+    const attachmentId = pathParam(req, "attachmentId");
+
+    const task = await prisma.task.findUnique({ where: { id } });
+    if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
+    if (!canAccessTask(req.user!, task)) throw new HttpError(403, "Forbidden", "forbidden");
+
+    const attachment = await prisma.attachment.findUnique({ where: { id: attachmentId } });
+    if (!attachment || attachment.taskId !== id)
+      throw new HttpError(404, "Attachment not found", "not_found");
+
+    const filePath = path.join(UPLOAD_DIR, attachment.storageKey);
+    if (!fs.existsSync(filePath)) throw new HttpError(404, "File missing from server", "not_found");
+
+    res.setHeader("Content-Disposition", `attachment; filename="${attachment.fileName}"`);
+    res.setHeader("Content-Type", attachment.mimeType);
+    res.sendFile(filePath);
   }),
 );
 
