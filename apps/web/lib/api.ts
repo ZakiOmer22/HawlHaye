@@ -1,4 +1,6 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+// IMPORTANT: BASE is empty so requests go through the Vercel proxy,
+// making the cookie first-party and bypassing browser 3rd-party cookie blockers.
+const BASE = "";
 
 export class ApiError extends Error {
   constructor(
@@ -60,8 +62,6 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       /* non-JSON error body */
     }
 
-    // Global gate: if the backend says password rotation is required,
-    // redirect anywhere except the change-password page itself.
     if (
       typeof window !== "undefined" &&
       code === "password_change_required" &&
@@ -77,17 +77,6 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await res.json()) as T;
 }
 
-/**
- * Error codes the backend can return. The SPA should branch on `code`
- * (not on `message`) so wording can change without breaking routing.
- *
- *   csrf_failed               — missing/stale X-CSRF-Token → re-login
- *   unauthenticated           — no session → /login
- *   session_idle              — 30-min idle timeout → /login?reason=idle
- *   password_change_required  — mustChangePassword → /change-password
- *   account_locked            — lockout active → "try again later" banner
- *   too_many_requests         — rate limit → "try again later" banner
- */
 export function isAuthError(err: unknown): err is ApiError {
   return (
     err instanceof ApiError &&

@@ -6,6 +6,14 @@ const nextConfig = {
   output: "standalone",
   poweredByHeader: false,
   transpilePackages: ["@hawl/shared"],
+  async rewrites() {
+    return [
+      {
+        source: "/api/v1/:path*",
+        destination: "https://hawlhaye.onrender.com/api/v1/:path*",
+      },
+    ];
+  },
   async headers() {
     return [
       {
