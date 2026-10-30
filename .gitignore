@@ -11,3 +11,5 @@ uploads/
 backups/
 *.pem
 *.key
+*.tsbuildinfo
+infra/.env

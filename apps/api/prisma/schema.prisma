@@ -1,12 +1,21 @@
-// DRAFT v0 - owner: Abdiqadir Ibrahim (review: Zacki). Validate with `npx prisma validate` once Prisma is installed.
+// HAWL — University of Hargeisa / CECIT
+// DRAFT v1.1 — owner: Maxamed (database owner), review: Zacki Omer
+// Changes from v1: Lockout fields, Restrict deletes (safety), custom indexes, directUrl.
+
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL")
 }
+
+// ─────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────
 
 enum Role {
   DEAN
@@ -39,133 +48,248 @@ enum OfficeType {
   ADMINISTRATION
 }
 
+enum DelegationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+// ─────────────────────────────────────────────────────────────
+// Reference tables
+// ─────────────────────────────────────────────────────────────
+
 model Office {
-  id     String     @id @default(cuid())
-  name   String     @unique
-  type   OfficeType
-  active Boolean    @default(true)
-  users  User[]
-  tasks  Task[]
+  id        String     @id @default(cuid())
+  name      String     @unique
+  type      OfficeType
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  users     User[]
+  tasks     Task[]
+  invites   Invite[]
+
+  @@index([type])
+  @@map("offices")
 }
 
 model Category {
-  id     String  @id @default(cuid())
-  name   String  @unique
-  color  String?
-  active Boolean @default(true)
-  tasks  Task[]
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tasks     Task[]
+
+  @@map("categories")
 }
 
 model User {
-  id                 String       @id @default(cuid())
-  email              String       @unique
-  fullName           String
-  passwordHash       String?
-  role               Role
-  officeId           String?
-  office             Office?      @relation(fields: [officeId], references: [id])
-  active             Boolean      @default(true)
-  inviteTokenHash    String?
-  inviteExpiresAt    DateTime?
-  lastLoginAt        DateTime?
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-  ownedTasks         Task[]       @relation("TaskOwner")
-  assignedTasks      Task[]       @relation("TaskAssigner")
-  createdTasks       Task[]       @relation("TaskCreator")
-  delegationsGot     Delegation[] @relation("DelegationDelegate")
-  delegationsMade    Delegation[] @relation("DelegationBy")
-  comments           Comment[]
-  attachments        Attachment[]
-  events             TaskEvent[]
-  auditLogs          AuditLog[]
-  sessions           Session[]
+  id            String    @id @default(cuid())
+  email         String    @unique
+  fullName      String
+  passwordHash  String? // null until an invite is accepted
+  role          Role
+  officeId      String?
+  office        Office?   @relation(fields: [officeId], references: [id], onDelete: SetNull)
+  active        Boolean   @default(true)
+  deactivatedAt DateTime?
+  lastLoginAt   DateTime?
+
+  twoFactorSecret     String?
+  twoFactorEnabled    Boolean   @default(false)
+  twoFactorChallenges TwoFactorChallenge[]
+
+  // NEW: Security Lockout fields
+  failedLoginCount   Int       @default(0)
+  lockedUntil        DateTime?
+  passwordChangedAt  DateTime?
+  mustChangePassword Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownedTasks      Task[]       @relation("TaskOwner")
+  assignedTasks   Task[]       @relation("TaskAssigner")
+  createdTasks    Task[]       @relation("TaskCreator")
+  delegationsGot  Delegation[] @relation("DelegationDelegate")
+  delegationsMade Delegation[] @relation("DelegationBy")
+  comments        Comment[]
+  attachments     Attachment[]
+  events          TaskEvent[]
+  auditLogs       AuditLog[]
+  sessions        Session[]
+  invitesSent     Invite[]     @relation("InviteInviter")
+  passwordResets  PasswordReset[]
+  twoFAExemptUntil DateTime?
+
+  passkeys            Passkey[]
+  backupCodes BackupCode[]
+
+  @@index([role])
+  @@index([officeId])
+  @@index([active])
+  @@map("users")
 }
 
+model BackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String    @unique
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, usedAt])
+  @@map("backup_codes")
+}
+
+model Passkey {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialID String   @unique
+  publicKey    Bytes
+  counter      Int
+  transports   String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@map("passkeys")
+}
+
+model PasskeyChallenge {
+  id        String   @id @default(cuid())
+  userId    String?
+  email     String?
+  challenge String   @unique
+  createdAt DateTime @default(now())
+}
+
+model TwoFactorChallenge {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────────────────────
+// Tasks
+// ─────────────────────────────────────────────────────────────
+
 model Task {
-  id           String       @id @default(cuid())
-  code         String       @unique // CECIT-YYYY-NNN, generated in a transaction
-  title        String
-  description  String?
-  categoryId   String
-  category     Category     @relation(fields: [categoryId], references: [id])
-  officeId     String
-  office       Office       @relation(fields: [officeId], references: [id])
-  priority     Priority     @default(MEDIUM)
-  status       TaskStatus   @default(UNASSIGNED)
+  id          String     @id @default(cuid())
+  code        String     @unique // CECIT-YYYY-NNN
+  title       String
+  description String?
+  categoryId  String
+  category    Category   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  officeId    String
+  office      Office     @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  priority    Priority   @default(MEDIUM)
+  status      TaskStatus @default(UNASSIGNED)
+
   ownerId      String?
-  owner        User?        @relation("TaskOwner", fields: [ownerId], references: [id])
+  owner        User?   @relation("TaskOwner", fields: [ownerId], references: [id], onDelete: Restrict) // CHANGED
   assignedById String?
-  assignedBy   User?        @relation("TaskAssigner", fields: [assignedById], references: [id])
+  assignedBy   User?   @relation("TaskAssigner", fields: [assignedById], references: [id], onDelete: Restrict) // CHANGED
   createdById  String
-  createdBy    User         @relation("TaskCreator", fields: [createdById], references: [id])
-  dueDate      DateTime?
-  completedAt  DateTime?
-  cancelledAt  DateTime?
-  cancelReason String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  delegations  Delegation[]
-  comments     Comment[]
-  attachments  Attachment[]
-  events       TaskEvent[]
+  createdBy    User    @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  dueDate       DateTime?
+  blockedReason String?
+  completedAt   DateTime?
+  cancelledAt   DateTime?
+  cancelReason  String?
+  deletedAt     DateTime? // soft delete
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  delegations Delegation[]
+  comments    Comment[]
+  attachments Attachment[]
+  events      TaskEvent[]
 
   @@index([status])
   @@index([ownerId, status])
   @@index([officeId, status])
   @@index([categoryId])
   @@index([dueDate])
+  @@index([status, dueDate])
+  @@index([deletedAt])
+  // NEW Indexes
+  @@index([assignedById])
+  @@index([createdById])
+  @@index([createdAt])
+  @@index([completedAt])
+  @@map("tasks")
 }
 
 model Delegation {
-  id            String    @id @default(cuid())
+  id            String           @id @default(cuid())
   taskId        String
-  task          Task      @relation(fields: [taskId], references: [id])
+  task          Task             @relation(fields: [taskId], references: [id], onDelete: Restrict) // CHANGED
   delegateId    String
-  delegate      User      @relation("DelegationDelegate", fields: [delegateId], references: [id])
+  delegate      User             @relation("DelegationDelegate", fields: [delegateId], references: [id], onDelete: Restrict)
   delegatedById String
-  delegatedBy   User      @relation("DelegationBy", fields: [delegatedById], references: [id])
-  createdAt     DateTime  @default(now())
+  delegatedBy   User             @relation("DelegationBy", fields: [delegatedById], references: [id], onDelete: Restrict)
+  reason        String?
+  status        DelegationStatus @default(PENDING)
+  respondedAt   DateTime?
   endedAt       DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   @@index([taskId])
-  @@index([delegateId])
+  @@index([delegateId, status])
+  @@index([delegatedById])
+  @@map("delegations")
 }
 
 model Comment {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   taskId    String
-  task      Task     @relation(fields: [taskId], references: [id])
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Restrict) // CHANGED
   authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Restrict)
   body      String
-  createdAt DateTime @default(now())
+  editedAt  DateTime?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  @@index([taskId])
+  @@index([taskId, createdAt])
+  @@index([authorId])
+  @@map("comments")
 }
 
 model Attachment {
   id           String   @id @default(cuid())
   taskId       String
-  task         Task     @relation(fields: [taskId], references: [id])
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Restrict) // CHANGED
   uploadedById String
-  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
   fileName     String
   mimeType     String
   sizeBytes    Int
-  storageKey   String   @unique // random name, never the original file name
+  storageKey   String   @unique
   createdAt    DateTime @default(now())
 
   @@index([taskId])
+  @@index([uploadedById]) // NEW
+  @@map("attachments")
 }
 
-/// Append-only history of task changes. No update or delete routes.
 model TaskEvent {
   id        String   @id @default(cuid())
   taskId    String
-  task      Task     @relation(fields: [taskId], references: [id])
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Restrict) // CHANGED
   actorId   String
-  actor     User     @relation(fields: [actorId], references: [id])
+  actor     User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
   type      String
   fromValue String?
   toValue   String?
@@ -173,37 +297,88 @@ model TaskEvent {
   createdAt DateTime @default(now())
 
   @@index([taskId, createdAt])
+  @@index([actorId])
+  @@index([type])
+  @@map("task_events")
 }
 
-/// Security and system events: logins, failed logins, role changes, exports.
 model AuditLog {
-  id        String   @id @default(cuid())
-  actorId   String?
-  actor     User?    @relation(fields: [actorId], references: [id])
-  action    String
-  ip        String?
-  userAgent String?
-  meta      Json?
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  action     String
+  entityType String?
+  entityId   String?
+  ip         String?
+  userAgent  String?
+  meta       Json?
+  hash       String   @default("")   // ← ADD
+  prevHash   String?                 // ← ADD
+  createdAt  DateTime @default(now())
 
   @@index([action, createdAt])
   @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
 
 model Session {
   id         String    @id @default(cuid())
   userId     String
-  user       User      @relation(fields: [userId], references: [id])
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade) // Kept Cascade
   tokenHash  String    @unique
   createdAt  DateTime  @default(now())
   lastSeenAt DateTime  @default(now())
   expiresAt  DateTime
   revokedAt  DateTime?
+  ip         String?
+  userAgent  String?
+  impersonatedById  String?
 
   @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Invite {
+  id          String    @id @default(cuid())
+  email       String
+  role        Role
+  officeId    String?
+  office      Office?   @relation(fields: [officeId], references: [id], onDelete: SetNull)
+  invitedById String
+  invitedBy   User      @relation("InviteInviter", fields: [invitedById], references: [id], onDelete: Restrict)
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+  @@index([invitedById]) // NEW
+  @@index([officeId]) // NEW
+  @@map("invites")
+}
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_resets")
 }
 
 model TaskCodeSequence {
-  year    Int @id
-  lastSeq Int @default(0)
+  year      Int      @id
+  lastSeq   Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@map("task_code_sequences")
 }

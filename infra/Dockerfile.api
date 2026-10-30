@@ -1,21 +1,60 @@
-# UNTESTED scaffold. Build context is the repo root.
-FROM node:20-alpine AS build
+# ─────────────────────────────────────────────────────────────────
+# HAWL API — Production Dockerfile
+# Multi-stage: builder compiles + generates Prisma; runtime copies only what's needed
+# ─────────────────────────────────────────────────────────────────
+
+FROM node:20-alpine AS builder
+
 WORKDIR /repo
+
+# Build dependencies for native modules (argon2) and Prisma
+RUN apk add --no-cache python3 make g++ openssl
+
+# Copy workspace manifests for better layer caching
 COPY package.json package-lock.json tsconfig.base.json ./
+COPY packages/shared/package.json packages/shared/
+COPY apps/api/package.json apps/api/
+
+RUN npm ci
+
+# Copy the source after deps (cache-friendly)
 COPY packages/shared packages/shared
 COPY apps/api apps/api
-RUN npm ci
-RUN npm run build -w @hawl/shared && npm run build -w @hawl/api
 
-FROM node:20-alpine
+# Build shared then api; the api build script runs `prisma generate`
+RUN npm run build -w @hawl/shared
+RUN npm run build -w @hawl/api
+
+# ─────────────────────────────────────────────────────────────────
+FROM node:20-alpine AS runtime
+
 WORKDIR /repo
+
+# Runtime tools: openssl for Prisma engine, dumb-init for signal handling
+RUN apk add --no-cache openssl dumb-init
+
 ENV NODE_ENV=production
-COPY --from=build /repo/package.json /repo/package-lock.json ./
-COPY --from=build /repo/packages/shared/package.json packages/shared/package.json
-COPY --from=build /repo/packages/shared/dist packages/shared/dist
-COPY --from=build /repo/apps/api/package.json apps/api/package.json
-COPY --from=build /repo/apps/api/dist apps/api/dist
-RUN npm ci --omit=dev -w @hawl/api -w @hawl/shared
-USER node
+
+# Copy the entire node_modules from builder — this includes:
+#   - production deps
+#   - the generated Prisma client in node_modules/.prisma/client
+#   - the query engine binary for linux-musl-openssl-3.0.x
+COPY --from=builder /repo/node_modules ./node_modules
+COPY --from=builder /repo/package.json ./package.json
+COPY --from=builder /repo/packages/shared/package.json ./packages/shared/package.json
+COPY --from=builder /repo/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /repo/apps/api/package.json ./apps/api/package.json
+COPY --from=builder /repo/apps/api/dist ./apps/api/dist
+COPY --from=builder /repo/apps/api/prisma ./apps/api/prisma
+
+# Non-root user + writable uploads directory
+RUN addgroup -S hawl && adduser -S hawl -G hawl && \
+    mkdir -p /repo/apps/api/uploads && \
+    chown -R hawl:hawl /repo/apps/api/uploads /repo/node_modules
+USER hawl
+
+WORKDIR /repo/apps/api
 EXPOSE 4000
-CMD ["node", "apps/api/dist/index.js"]
+
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+CMD ["node", "dist/index.js"]

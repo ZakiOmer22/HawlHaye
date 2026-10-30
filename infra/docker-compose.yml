@@ -1,37 +1,65 @@
-# Production-like stack (UNTESTED scaffold - Ridwan to finish and test on staging, Day 1-2).
-# Only Caddy publishes ports. Database is never reachable from the internet.
+# Production-like stack
 services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
     ports: ["80:80", "443:443"]
     environment:
-      HAWL_DOMAIN: ${HAWL_DOMAIN}
+      # Fallback to 'localhost' if HAWL_DOMAIN is missing in .env
+      HAWL_DOMAIN: ${HAWL_DOMAIN:-localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
+      - caddy_config:/config
     depends_on: [web, api]
+    networks:
+      - hawl_internal
+
   web:
     build: { context: .., dockerfile: infra/Dockerfile.web }
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: https://${HAWL_DOMAIN}
+      NEXT_PUBLIC_API_URL: https://${HAWL_DOMAIN:-localhost}
+    depends_on: [api]
+    networks:
+      - hawl_internal
+
   api:
     build: { context: .., dockerfile: infra/Dockerfile.api }
     restart: unless-stopped
     env_file: ../.env
+    environment:
+      NODE_ENV: production
+      # OVERRIDE DATABASE_URL: Point to 'db' container instead of 127.0.0.1
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hawl}:${POSTGRES_PASSWORD:-change-me}@db:5432/${POSTGRES_DB:-hawl}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER:-hawl}:${POSTGRES_PASSWORD:-change-me}@db:5432/${POSTGRES_DB:-hawl}?schema=public
+    volumes:
+      # Mount the uploads volume so attachments survive container restarts
+      - hawl_uploads:/repo/apps/api/uploads
     depends_on:
       db: { condition: service_healthy }
+    networks:
+      - hawl_internal
+
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     env_file: ../.env
     volumes: [hawl_db:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-hawl}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - hawl_internal
+
 volumes:
   caddy_data:
+  caddy_config:
   hawl_db:
+  hawl_uploads:
+
+networks:
+  hawl_internal:
+    driver: bridge

@@ -1,0 +1,7 @@
+# /etc/cron.d/hawl-backup
+# Nightly encrypted database backup at 03:00 local time
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin
+
+# Load env (DB_PASSWORD, GPG_RECIPIENT, etc.)
+0 3 * * *  root  set -a && . /etc/hawl/backup.env && set +a && /opt/hawl/infra/backup/backup.sh >> /var/log/hawl-backup.log 2>&1

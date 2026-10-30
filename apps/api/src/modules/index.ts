@@ -1,28 +1,26 @@
-import { Router, type Express } from "express";
-
-/**
- * One folder per module (create src/modules/<name>/ with routes, service, schemas as you build it).
- * Owners: auth, audit, task workflow = Zacki; users, offices, categories, tasks CRUD, comments,
- * attachments, reports = Maxamed Siciid. Database schema = Abdiqadir.
- */
-const MODULES = [
-  "auth",
-  "users",
-  "offices",
-  "categories",
-  "tasks",
-  "comments",
-  "attachments",
-  "reports",
-  "audit",
-] as const;
+import type { Express } from "express";
+import { authRouter } from "./auth/routes";
+import { officesRouter } from "./offices/routes";
+import { categoriesRouter } from "./categories/routes";
+import { usersRouter } from "./users/routes";
+import { tasksRouter, tasksPublicRouter } from "./tasks/routes";
+import { auditRouter } from "./audit/routes";
+import { reportsRouter } from "./reports/routes";
+import { wellKnownRouter } from "./well-known/routes";
+import { searchRouter } from "./search/routes";
+import { notificationsRouter } from "./notifications/routes";
 
 export function registerModules(app: Express): void {
-  for (const name of MODULES) {
-    const router = Router();
-    router.all("*", (_req, res) => {
-      res.status(501).json({ error: "not_implemented", module: name });
-    });
-    app.use(`/api/v1/${name}`, router);
-  }
+  app.use("/.well-known", wellKnownRouter);
+  app.use("/api/v1/tasks", tasksPublicRouter);
+
+  app.use("/api/v1/auth", authRouter);
+  app.use("/api/v1/offices", officesRouter);
+  app.use("/api/v1/categories", categoriesRouter);
+  app.use("/api/v1/users", usersRouter);
+  app.use("/api/v1/tasks", tasksRouter);
+  app.use("/api/v1/audit", auditRouter);
+  app.use("/api/v1/reports", reportsRouter);
+  app.use("/api/v1/search", searchRouter);
+  app.use("/api/v1/notifications", notificationsRouter);
 }
