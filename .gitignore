@@ -13,3 +13,6 @@ backups/
 *.key
 *.tsbuildinfo
 infra/.env
+results.sarif
+results.sarif
+sbom.json

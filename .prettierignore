@@ -3,3 +3,6 @@ dist
 .next
 package-lock.json
 *.md
+results.sarif
+results.sarif
+sbom.json
