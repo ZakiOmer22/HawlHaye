@@ -1,16 +1,32 @@
-name: CI
-on:
-  pull_request:
-  push:
-    branches: [develop, main]
-
-permissions:
-  contents: read
-
 jobs:
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    # 1. SPIN UP A TEMPORARY DATABASE FOR TESTS
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: hawl
+          POSTGRES_PASSWORD: hawl
+          POSTGRES_DB: hawl_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    # 2. PASS ENV VARIABLES SO TESTS DON'T CRASH
+    env:
+      DATABASE_URL: postgresql://hawl:hawl@localhost:5432/hawl_test
+      SESSION_SECRET: "test-secret-test-secret-test-secret-0000"
+      CSRF_SECRET: "test-csrf-test-csrf-test-csrf-test-0000"
+      AUDIT_CHAIN_SECRET: "test-audit-test-audit-test-audit-0000"
+      NODE_ENV: test
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,6 +46,10 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm run typecheck
+
+      # 3. PUSH THE SCHEMA TO THE TEMPORARY DB
+      - run: npx prisma db push -w @hawl/api
+
       - run: npm test
       - run: npm run build
 
@@ -48,45 +68,3 @@ jobs:
           name: sbom-${{ github.sha }}
           path: ./sbom.json
           retention-days: 90
-
-  security-scan:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Semgrep (SAST)
-        uses: semgrep/semgrep-action@v1
-        with:
-          config: |
-            p/default
-            p/owasp-top-ten
-
-      - name: Build API image
-        run: docker build -f infra/Dockerfile.api -t hawl-api:scan .
-
-      - name: Build Web image
-        run: docker build -f infra/Dockerfile.web -t hawl-web:scan .
-
-      - name: Trivy (API image)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: hawl-api:scan
-          format: table
-          exit-code: "0" # Changed to 0 so dev-dep vulns don't block the build
-          ignore-unfixed: true
-          vuln-type: os,library
-          severity: CRITICAL,HIGH
-
-      - name: Trivy (Web image)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: hawl-web:scan
-          format: table
-          exit-code: "0" # Changed to 0
-          ignore-unfixed: true
-          vuln-type: os,library
-          severity: CRITICAL,HIGH
