@@ -10,8 +10,6 @@ const nextConfig = {
   output: "standalone",
   poweredByHeader: false,
   transpilePackages: ["@hawl/shared"],
-  // THE FIX: Point to the monorepo root (two levels up) so Turbopack
-  // can find the hoisted `next` and `tailwindcss` packages.
   turbopack: {
     root: path.resolve(__dirname, "../../"),
   },
