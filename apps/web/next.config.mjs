@@ -1,9 +1,7 @@
-// apps/web/next.config.mjs
-import { fileURLToPath } from 'url';
-import path from 'path';
+import path from "path";
+import { fileURLToPath } from "url";
 import { withSentryConfig } from "@sentry/nextjs/config";
 
-// Get the directory of this config file (apps/web)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -12,9 +10,10 @@ const nextConfig = {
   output: "standalone",
   poweredByHeader: false,
   transpilePackages: ["@hawl/shared"],
+  // THE FIX: Point to the monorepo root (two levels up) so Turbopack
+  // can find the hoisted `next` and `tailwindcss` packages.
   turbopack: {
-    // This tells Turbopack to resolve modules from apps/web
-    root: __dirname,
+    root: path.resolve(__dirname, "../../"),
   },
   async headers() {
     return [
