@@ -7,7 +7,8 @@ import { api, ApiError } from "@/lib/api";
 import { startAuthentication } from "@simplewebauthn/browser";
 import { Fingerprint } from "lucide-react";
 
-const SHOW_DEMO_ACCOUNTS = process.env.NODE_ENV !== "production";
+// const SHOW_DEMO_ACCOUNTS = process.env.NODE_ENV !== "production";
+const SHOW_DEMO_ACCOUNTS = true ;
 
 const DEMO_ACCOUNTS = SHOW_DEMO_ACCOUNTS
   ? [
