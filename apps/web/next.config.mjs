@@ -1,11 +1,21 @@
-/* global process */
+// apps/web/next.config.mjs
+import { fileURLToPath } from 'url';
+import path from 'path';
 import { withSentryConfig } from "@sentry/nextjs/config";
+
+// Get the directory of this config file (apps/web)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
   poweredByHeader: false,
   transpilePackages: ["@hawl/shared"],
+  turbopack: {
+    // This tells Turbopack to resolve modules from apps/web
+    root: __dirname,
+  },
   async headers() {
     return [
       {
@@ -28,5 +38,5 @@ export default withSentryConfig(nextConfig, {
   widenClientFileUpload: true,
   hideSourceMaps: true,
   disableLogger: true,
-  tunnelRoute: "/t", // <--- CHANGE THIS TO "/t"
+  tunnelRoute: "/t",
 });
