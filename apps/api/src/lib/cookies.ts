@@ -7,11 +7,16 @@ export const SESSION_COOKIE = env.SESSION_COOKIE_NAME;
 /** CSRF cookie name — deliberately NOT httpOnly so the SPA can read it */
 export const CSRF_COOKIE = "csrf";
 
+const isProd = env.NODE_ENV === "production";
+
 function baseCookieOpts(httpOnly: boolean) {
   return {
     httpOnly,
-    secure: env.NODE_ENV === "production",
-    sameSite: "lax" as const,
+    secure: isProd,
+    // "none" is required for cross-domain requests (Vercel frontend <-> Render backend)
+    // "none" MUST be paired with secure: true (HTTPS)
+    // In dev, we use "lax" so it works over http://localhost
+    sameSite: (isProd ? "none" : "lax") as "none" | "lax" | "strict",
     path: "/",
   };
 }
@@ -35,10 +40,13 @@ export function clearSessionCookie(res: Response): void {
 export function setCsrfCookie(res: Response, token: string): void {
   res.cookie(CSRF_COOKIE, token, {
     ...baseCookieOpts(false),
-    sameSite: "strict",
+    sameSite: isProd ? "none" : "strict",
   });
 }
 
 export function clearCsrfCookie(res: Response): void {
-  res.clearCookie(CSRF_COOKIE, { ...baseCookieOpts(false), sameSite: "strict" });
+  res.clearCookie(CSRF_COOKIE, {
+    ...baseCookieOpts(false),
+    sameSite: isProd ? "none" : "strict",
+  });
 }
