@@ -12,7 +12,7 @@ updates:
     groups:
       security-patches:
         patterns: ["*"]
-        update-types: ["patch", "security"]
+        update-types: ["patch", "minor"] # <-- Fixed: removed "security"
       minor-and-major:
         patterns: ["*"]
         update-types: ["minor", "major"]

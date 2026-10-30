@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "xss": "^1.0.17",
     "zod": "^3.23.8"
   }
 }
