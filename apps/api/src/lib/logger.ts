@@ -20,10 +20,8 @@ export const logger = pino({
           options: {
             colorize: true,
             translateTime: "SYS:standard",
-            // This removes the huge JSON blocks for req and res
-            ignore: "pid,hostname,req,res",
-            // This formats the final line beautifully
-            messageFormat: "{msg} ({responseTime}ms)",
+            // Hide the bulky JSON objects
+            ignore: "pid,hostname,req,res,responseTime",
           },
         }
       : undefined,

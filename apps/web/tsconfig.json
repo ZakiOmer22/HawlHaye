@@ -27,7 +27,9 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    "../api/src/middleware/upload.ts",
+    "../api/src/middleware/rateLimiter.ts"
   ],
   "exclude": ["node_modules"]
 }

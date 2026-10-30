@@ -1,16 +1,33 @@
-{$HAWL_DOMAIN} {
-  encode gzip
-  header {
-    Strict-Transport-Security "max-age=31536000; includeSubDomains"
-    -Server
-  }
-  handle /api/* {
-    reverse_proxy api:4000
-  }
-  handle /health {
-    reverse_proxy api:4000
-  }
-  handle {
-    reverse_proxy web:3000
-  }
+{
+	email admin@cecit.edu.so
+	# Use internal CA for local testing. REMOVE this line on the VPS for Let's Encrypt!
+	local_certs
+}
+
+{$HAWL_DOMAIN:localhost} {
+	encode zstd gzip
+
+	# API routes (strips nothing, passes /api/v1/... directly to Express)
+	handle /api/* {
+		reverse_proxy api:4000
+	}
+
+	# Health check
+	handle /health {
+		reverse_proxy api:4000
+	}
+
+	# Frontend routes
+	handle {
+		reverse_proxy web:3000
+	}
+
+	# Security Headers
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
 }

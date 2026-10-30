@@ -1,0 +1,60 @@
+name: Weekly Security Scan
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci --omit=dev
+
+      - name: Dependency audit
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Generate SBOM
+        uses: CycloneDX/gh-node-module-generatebom@v1
+        with:
+          path: ./
+          output: ./sbom.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-weekly-${{ github.run_id }}
+          path: ./sbom.json
+          retention-days: 180
+
+      - name: Build API image
+        run: docker build -f infra/Dockerfile.api -t hawl-api:weekly .
+
+      - name: Build Web image
+        run: docker build -f infra/Dockerfile.web -t hawl-web:weekly .
+
+      - name: Trivy (API image)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: hawl-api:weekly
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      - name: Trivy (Web image)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: hawl-web:weekly
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH

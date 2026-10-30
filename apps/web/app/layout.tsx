@@ -17,13 +17,10 @@ export const metadata: Metadata = {
   description:
     "Assign. Track. Review. One clear direction for institutional work at University of Hargeisa and beyond.",
   keywords: ["HAWLHAYE", "University of Hargeisa", "CECIT", "task management", "workflow"],
-
-  // This fixes the favicon issue (requires icon.png in /public folder)
   icons: {
     icon: [{ url: "/icon.png", type: "image/png" }, { url: "/favicon.ico" }],
     apple: "/apple-touch-icon.png",
   },
-
   openGraph: {
     title: "HAWLHAYE - Institutional Task Management",
     description: "One clear direction for institutional work.",
@@ -49,13 +46,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="scroll-smooth dark">
-      {/* Note: Removed overflow-hidden here to allow sticky navbar to work */}
-      <body
-        className={`${jakarta.variable} font-sans antialiased bg-[#080810] text-[#f5f5f0] min-h-screen flex flex-col`}
-      >
-        {children}
-      </body>
+    <html lang="en" className="scroll-smooth" suppressHydrationWarning>
+      <body className={`${jakarta.variable} font-sans antialiased min-h-screen`}>{children}</body>
     </html>
   );
 }

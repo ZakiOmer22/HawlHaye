@@ -1,6 +1,6 @@
 {
   "name": "hawl",
-  "version": "0.1.0",
+  "version": "3.1.0",
   "private": true,
   "description": "HAWL - CECIT College Task Management System",
   "engines": {
@@ -28,5 +28,9 @@
     "typescript": "^5.6.2",
     "typescript-eslint": "^8.8.0",
     "vitest": "^2.1.2"
+  },
+  "dependencies": {
+    "@sentry/node": "^11.10.0",
+    "cors": "^2.8.6"
   }
 }

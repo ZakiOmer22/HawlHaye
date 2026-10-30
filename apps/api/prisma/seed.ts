@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * HAWL development and demo seed.  Run: npm run db:seed -w @hawl/api
  *
@@ -75,6 +76,7 @@ const USERS: Array<{
   fullName: string;
   role: Role;
   office: OfficeKey;
+  password: string;
 }> = [
   {
     key: "admin",
@@ -82,7 +84,7 @@ const USERS: Array<{
     fullName: "System Admin",
     role: "ADMINISTRATOR",
     office: "admin",
-    password: "1",
+    password: "12345678",
   },
   {
     key: "dean",
@@ -90,7 +92,7 @@ const USERS: Array<{
     fullName: "Dean of CECIT",
     role: "DEAN",
     office: "admin",
-    password: "2",
+    password: "12345678",
   },
   {
     key: "deputy",
@@ -98,7 +100,7 @@ const USERS: Array<{
     fullName: "Deputy Dean",
     role: "DEPUTY",
     office: "admin",
-    password: "3",
+    password: "12345678",
   },
   {
     key: "faculty",
@@ -106,7 +108,7 @@ const USERS: Array<{
     fullName: "Faculty Coordinator (Computing and IT)",
     role: "FACULTY_COORDINATOR",
     office: "computing",
-    password: "4",
+    password: "12345678",
   },
   {
     key: "faculty2",
@@ -114,6 +116,7 @@ const USERS: Array<{
     fullName: "Faculty Coordinator (Engineering)",
     role: "FACULTY_COORDINATOR",
     office: "engineering",
+    password: "12345678",
   },
   {
     key: "labs",
@@ -121,7 +124,7 @@ const USERS: Array<{
     fullName: "Labs Coordinator",
     role: "LABS_COORDINATOR",
     office: "labs",
-    password: "6",
+    password: "12345678",
   },
   {
     key: "tech",
@@ -129,7 +132,7 @@ const USERS: Array<{
     fullName: "Lab Technician One",
     role: "LAB_TECHNICIAN",
     office: "labs",
-    password: "7",
+    password: "12345678",
   },
   {
     key: "tech2",
@@ -137,7 +140,7 @@ const USERS: Array<{
     fullName: "Lab Technician Two",
     role: "LAB_TECHNICIAN",
     office: "labs",
-    password: "8",
+    password: "12345678",
   },
 ];
 

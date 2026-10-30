@@ -2,16 +2,65 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Semantic color tokens ─────────────────────────────────────
+   Stored as raw RGB channels (e.g. `15 23 42`) so Tailwind can
+   apply opacity modifiers like `bg-app/90`, `border-border/50`,
+   `text-muted/60`. Hex values would silently break those. */
+
+:root {
+  /* Dark (default) */
+  --color-app: 15 23 42; /* #0F172A */
+  --color-app-soft: 11 19 43; /* #0B132B */
+  --color-panel: 30 41 59; /* #1E293B */
+  --color-panel-hover: 39 52 73; /* #273449 */
+  --color-border: 51 65 85; /* #334155 */
+  --color-border-strong: 71 85 105; /* #475569 */
+  --color-text-primary: 248 250 252; /* #F8FAFC */
+  --color-text-secondary: 203 213 225; /* #CBD5E1 */
+  --color-text-muted: 148 163 184; /* #94A3B8 */
+  --color-text-faint: 100 116 139; /* #64748B */
+  --color-accent: 232 188 105; /* #E8BC69 */
+  --color-accent-hover: 241 207 139; /* #F1CF8B */
+  --color-accent-text: 15 23 42; /* #0F172A */
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --color-app: 241 245 249; /* #F1F5F9 */
+  --color-app-soft: 226 232 240; /* #E2E8F0 */
+  --color-panel: 255 255 255; /* #FFFFFF */
+  --color-panel-hover: 248 250 252; /* #F8FAFC */
+  --color-border: 226 232 240; /* #E2E8F0 */
+  --color-border-strong: 203 213 225; /* #CBD5E1 */
+  --color-text-primary: 15 23 42; /* #0F172A */
+  --color-text-secondary: 51 65 85; /* #334155 */
+  --color-text-muted: 100 116 139; /* #64748B */
+  --color-text-faint: 148 163 184; /* #94A3B8 */
+  --color-accent: 184 133 15; /* #B8850F */
+  --color-accent-hover: 160 111 0; /* #A06F00 */
+  --color-accent-text: 255 255 255; /* #FFFFFF */
+  color-scheme: light;
+}
+
+/* ── Body + scrollbars ──────────────────────────────────────── */
+body {
+  background-color: rgb(var(--color-app));
+  color: rgb(var(--color-text-primary));
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+
 /* ── Hide Scrollbar for the Kanban Board ───────────── */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 .no-scrollbar {
-  -ms-overflow-style: none; /* IE and Edge */
-  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-/* ── Custom Animations ─────────────────────────────── */
+/* ── Animations ─────────────────────────────────────── */
 @keyframes fade-up {
   from {
     opacity: 0;
@@ -22,7 +71,6 @@
     transform: translateY(0);
   }
 }
-
 @keyframes float {
   0%,
   100% {
@@ -32,17 +80,13 @@
     transform: translateY(-15px);
   }
 }
-
 .animate-fade-up {
   animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   opacity: 0;
 }
-
 .animate-float {
   animation: float 6s ease-in-out infinite;
 }
-
-/* Delay utilities */
 .delay-100 {
   animation-delay: 100ms;
 }
@@ -56,44 +100,471 @@
   animation-delay: 400ms;
 }
 
-/* ── Grid & Glow Backgrounds ───────────────────────── */
+/* ── Grid & Glow ─────────────────────────────────────── */
 .bg-grid-dark {
   background-image:
     linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
   background-size: 40px 40px;
 }
-
 .glow-gold {
   box-shadow: 0 0 40px rgba(232, 188, 105, 0.15);
 }
-
 .text-gradient-gold {
   background: linear-gradient(to right, #e8bc69, #f1cf8b);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
-/* ── Global Custom Scrollbar (for everything EXCEPT the board) ── */
+/* ── Global Custom Scrollbar ──────────────────────────────── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #334155 #0f172a;
+  scrollbar-color: rgb(var(--color-border)) rgb(var(--color-app));
 }
-
 *::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-
 *::-webkit-scrollbar-track {
   background: transparent;
 }
-
 *::-webkit-scrollbar-thumb {
-  background-color: #334155;
+  background-color: rgb(var(--color-border));
   border-radius: 10px;
 }
-
 *::-webkit-scrollbar-thumb:hover {
-  background-color: #475569;
+  background-color: rgb(var(--color-border-strong));
+}
+
+/* ────────────────────────────────────────────────────────────────
+   LIGHT MODE OVERRIDES
+   Handles pages that still use hardcoded Tailwind hex classes.
+   As pages migrate to semantic tokens (bg-app, bg-panel, etc.),
+   their override rules here can be deleted.
+   ──────────────────────────────────────────────────────────────── */
+
+[data-theme="light"] body {
+  background-color: rgb(var(--color-app));
+  color: rgb(var(--color-text-primary));
+}
+
+/* Main backgrounds */
+[data-theme="light"] .bg-\[\#0F172A\],
+[data-theme="light"] .bg-\[\#0F172A\]\/40,
+[data-theme="light"] .bg-\[\#0F172A\]\/50,
+[data-theme="light"] .bg-\[\#0B132B\],
+[data-theme="light"] .bg-\[\#0B132B\]\/40,
+[data-theme="light"] .bg-\[\#0B132B\]\/50 {
+  background-color: rgb(var(--color-app));
+}
+[data-theme="light"] .bg-\[\#1E293B\],
+[data-theme="light"] .bg-\[\#142b4a\],
+[data-theme="light"] .bg-\[\#0A1628\],
+[data-theme="light"] .bg-\[\#1C2541\] {
+  background-color: rgb(var(--color-panel));
+}
+[data-theme="light"] .bg-\[\#1E293B\]\/90 {
+  background-color: rgb(var(--color-panel) / 0.9);
+}
+[data-theme="light"] .bg-\[\#1E293B\]\/60 {
+  background-color: rgb(var(--color-panel) / 0.6);
+}
+[data-theme="light"] .bg-\[\#1E293B\]\/50 {
+  background-color: rgb(var(--color-panel) / 0.5);
+}
+[data-theme="light"] .bg-\[\#1E293B\]\/40 {
+  background-color: rgb(var(--color-panel) / 0.4);
+}
+[data-theme="light"] .bg-\[\#334155\],
+[data-theme="light"] .bg-\[\#334155\]\/30,
+[data-theme="light"] .bg-\[\#2A3754\] {
+  background-color: rgb(var(--color-panel-hover));
+}
+
+/* Borders */
+[data-theme="light"] .border-\[\#334155\],
+[data-theme="light"] .border-\[\#2A3754\],
+[data-theme="light"] .border-\[\#475569\],
+[data-theme="light"] .border-\[\#1C2541\],
+[data-theme="light"] .border-\[\#1e1e35\] {
+  border-color: rgb(var(--color-border));
+}
+[data-theme="light"] .border-\[\#334155\]\/60,
+[data-theme="light"] .border-\[\#334155\]\/40,
+[data-theme="light"] .border-\[\#334155\]\/20 {
+  border-color: rgb(var(--color-border));
+}
+
+/* Text */
+[data-theme="light"] .text-white,
+[data-theme="light"] .text-\[\#F8FAFC\],
+[data-theme="light"] .text-\[\#f5f5f0\] {
+  color: rgb(var(--color-text-primary));
+}
+[data-theme="light"] .text-\[\#A0ABC0\],
+[data-theme="light"] .text-\[\#94A3B8\],
+[data-theme="light"] .text-\[\#8888aa\] {
+  color: rgb(var(--color-text-muted));
+}
+[data-theme="light"] .text-\[\#555570\],
+[data-theme="light"] .text-\[\#475569\] {
+  color: rgb(var(--color-text-faint));
+}
+
+/* Accent */
+[data-theme="light"] .text-\[\#e8bc69\] {
+  color: rgb(var(--color-accent));
+}
+[data-theme="light"] .bg-\[\#e8bc69\] {
+  background-color: rgb(var(--color-accent));
+  color: rgb(var(--color-accent-text));
+}
+[data-theme="light"] .text-\[\#0F172A\],
+[data-theme="light"] .text-\[\#080810\] {
+  color: rgb(var(--color-accent-text));
+}
+
+/* Hovers */
+[data-theme="light"] .hover\:bg-\[\#f1cf8b\]:hover {
+  background-color: rgb(var(--color-accent-hover));
+  color: rgb(var(--color-accent-text));
+}
+[data-theme="light"] .hover\:bg-\[\#e8bc69\]:hover {
+  background-color: rgb(var(--color-accent));
+}
+[data-theme="light"] .hover\:bg-\[\#1E293B\]:hover,
+[data-theme="light"] .hover\:bg-\[\#1E293B\]\/50:hover,
+[data-theme="light"] .hover\:bg-\[\#1E293B\]\/40:hover {
+  background-color: rgb(var(--color-panel-hover));
+}
+[data-theme="light"] .hover\:bg-\[\#0F172A\]:hover,
+[data-theme="light"] .hover\:bg-\[\#0F172A\]\/50:hover,
+[data-theme="light"] .hover\:bg-\[\#0F172A\]\/40:hover {
+  background-color: rgb(var(--color-app));
+}
+[data-theme="light"] .hover\:text-white:hover {
+  color: rgb(var(--color-text-primary));
+}
+[data-theme="light"] .hover\:text-\[\#e8bc69\]:hover {
+  color: rgb(var(--color-accent));
+}
+[data-theme="light"] .hover\:border-\[\#e8bc69\]\/60:hover,
+[data-theme="light"] .hover\:border-\[\#e8bc69\]\/50:hover,
+[data-theme="light"] .hover\:border-\[\#e8bc69\]\/40:hover {
+  border-color: rgb(var(--color-accent));
+}
+
+/* Focus */
+[data-theme="light"] .focus\:border-\[\#e8bc69\]:focus,
+[data-theme="light"] .focus-within\:border-\[\#e8bc69\]:focus-within {
+  border-color: rgb(var(--color-accent));
+}
+
+/* Inputs */
+[data-theme="light"] input,
+[data-theme="light"] textarea,
+[data-theme="light"] select {
+  background-color: rgb(var(--color-panel));
+  color: rgb(var(--color-text-primary));
+  border-color: rgb(var(--color-border));
+}
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: rgb(var(--color-text-faint));
+}
+
+/* Modal overlay */
+[data-theme="light"] .bg-black\/60 {
+  background-color: rgb(15 23 42 / 0.4);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ADDITIONS — new rules only. Nothing above is changed.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ────────────────────────────────────────────────────────────────
+   1. LIGHT MODE REFINEMENTS
+   ──────────────────────────────────────────────────────────────── */
+
+/* Gold buttons in light mode: use DARK text on gold, not white.
+   White on #B8850F fails contrast (~2.8:1). Dark on #B8850F gives ~6.3:1.
+   This is a token override — appended so it wins the cascade. */
+[data-theme="light"] {
+  --color-accent-text: 15 23 42; /* #0F172A — dark text on gold */
+  --color-accent-hover: 168 121 8; /* #A87908 — slightly darker for hover feedback */
+}
+
+/* Marketing navbar (landing page) — flips with theme */
+[data-theme="light"] .bg-\[\#080810\],
+[data-theme="light"] .bg-\[\#080810\]\/80 {
+  background-color: rgb(var(--color-app) / 0.85);
+}
+[data-theme="light"] .border-\[\#1e1e35\] {
+  border-color: rgb(var(--color-border));
+}
+[data-theme="light"] .text-\[\#080810\] {
+  color: rgb(var(--color-accent-text));
+}
+
+/* Gold tints — used for active nav backgrounds, language/theme pill
+   selected state, hover-tint on nav items, etc. Without these, they
+   stayed pale yellow (the raw #e8bc69 at low opacity) on white. */
+[data-theme="light"] .bg-\[\#e8bc69\]\/10 {
+  background-color: rgb(var(--color-accent) / 0.1);
+}
+[data-theme="light"] .bg-\[\#e8bc69\]\/15 {
+  background-color: rgb(var(--color-accent) / 0.15);
+}
+[data-theme="light"] .bg-\[\#e8bc69\]\/20 {
+  background-color: rgb(var(--color-accent) / 0.2);
+}
+[data-theme="light"] .bg-\[\#e8bc69\]\/30 {
+  background-color: rgb(var(--color-accent) / 0.3);
+}
+[data-theme="light"] .bg-\[\#e8bc69\]\/40 {
+  background-color: rgb(var(--color-accent) / 0.4);
+}
+[data-theme="light"] .hover\:bg-\[\#e8bc69\]\/10:hover {
+  background-color: rgb(var(--color-accent) / 0.15);
+}
+[data-theme="light"] .hover\:bg-\[\#e8bc69\]\/20:hover {
+  background-color: rgb(var(--color-accent) / 0.25);
+}
+
+/* Gold border tints — for active nav highlight, selected pills */
+[data-theme="light"] .border-\[\#e8bc69\] {
+  border-color: rgb(var(--color-accent));
+}
+[data-theme="light"] .border-\[\#e8bc69\]\/20 {
+  border-color: rgb(var(--color-accent) / 0.3);
+}
+[data-theme="light"] .border-\[\#e8bc69\]\/30 {
+  border-color: rgb(var(--color-accent) / 0.4);
+}
+[data-theme="light"] .border-\[\#e8bc69\]\/40 {
+  border-color: rgb(var(--color-accent) / 0.5);
+}
+[data-theme="light"] .border-\[\#e8bc69\]\/50 {
+  border-color: rgb(var(--color-accent) / 0.55);
+}
+[data-theme="light"] .border-\[\#e8bc69\]\/60 {
+  border-color: rgb(var(--color-accent) / 0.65);
+}
+[data-theme="light"] .hover\:border-\[\#e8bc69\]:hover {
+  border-color: rgb(var(--color-accent));
+}
+
+/* Extra text colors used across pages */
+[data-theme="light"] .text-\[\#CBD5E1\] {
+  color: rgb(var(--color-text-secondary));
+}
+[data-theme="light"] .text-\[\#64748B\] {
+  color: rgb(var(--color-text-muted));
+}
+[data-theme="light"] .text-\[\#273449\] {
+  color: rgb(var(--color-text-secondary));
+}
+
+/* Inputs: subtle inner shade on the light background so the field
+   boundary is visible even on pure-white panels */
+[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="light"] textarea,
+[data-theme="light"] select {
+  background-color: rgb(248 250 252);
+}
+[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]):focus,
+[data-theme="light"] textarea:focus,
+[data-theme="light"] select:focus {
+  background-color: rgb(255 255 255);
+  border-color: rgb(var(--color-accent));
+}
+
+/* Slightly more visible scrollbar in light mode (the dark-mode #334155
+   thumb is almost invisible on the #F1F5F9 track) */
+[data-theme="light"] * {
+  scrollbar-color: rgb(203 213 225) rgb(var(--color-app));
+}
+[data-theme="light"] *::-webkit-scrollbar-thumb {
+  background-color: rgb(203 213 225);
+}
+[data-theme="light"] *::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(148 163 184);
+}
+
+/* Skeleton pulses need to be slightly darker than panel in light mode
+   or they vanish against the white background */
+[data-theme="light"] .bg-\[\#1E293B\].animate-pulse,
+[data-theme="light"] .bg-\[\#1E293B\].motion-safe\:animate-pulse {
+  background-color: rgb(226 232 240);
+}
+
+/* Dashboard gradient header — the `[data-theme]` override system can't
+   retheme CSS gradients. This rule swaps the specific gradient used on
+   the dashboard greeting header so it renders light in light mode. */
+[data-theme="light"] .bg-gradient-to-br.from-\[\#1E293B\].via-\[\#1E293B\].to-\[\#0F172A\] {
+  background-image: linear-gradient(to bottom right, #ffffff, #ffffff, #f8fafc);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   2. FORCE-DARK SCOPE
+   ────────────────────────────────────────────────────────────────
+   Add `data-force-dark` to any element that must stay dark in BOTH
+   themes — PoweredBy, AppShell header, mobile drawer.
+   Every light-mode rule above is neutralised inside this scope. */
+
+[data-force-dark] {
+  color-scheme: dark;
+}
+
+/* Backgrounds */
+[data-force-dark] .bg-\[\#0F172A\],
+[data-force-dark].bg-\[\#0F172A\] {
+  background-color: #0f172a !important;
+}
+[data-force-dark] .bg-\[\#0F172A\]\/90,
+[data-force-dark].bg-\[\#0F172A\]\/90 {
+  background-color: rgba(15, 23, 42, 0.9) !important;
+}
+[data-force-dark] .bg-\[\#1E293B\],
+[data-force-dark].bg-\[\#1E293B\] {
+  background-color: #1e293b !important;
+}
+[data-force-dark] .bg-\[\#1E293B\]\/50,
+[data-force-dark].bg-\[\#1E293B\]\/50 {
+  background-color: rgba(30, 41, 59, 0.5) !important;
+}
+[data-force-dark] .bg-\[\#1C2541\],
+[data-force-dark].bg-\[\#1C2541\] {
+  background-color: #1c2541 !important;
+}
+[data-force-dark] .bg-\[\#0B132B\],
+[data-force-dark].bg-\[\#0B132B\] {
+  background-color: #0b132b !important;
+}
+[data-force-dark] .bg-\[\#2A3754\],
+[data-force-dark].bg-\[\#2A3754\] {
+  background-color: #2a3754 !important;
+}
+[data-force-dark] .bg-\[\#080810\],
+[data-force-dark].bg-\[\#080810\] {
+  background-color: #080810 !important;
+}
+
+/* Accent gold — full and tinted */
+[data-force-dark] .bg-\[\#e8bc69\],
+[data-force-dark].bg-\[\#e8bc69\] {
+  background-color: #e8bc69 !important;
+  color: #0f172a !important;
+}
+[data-force-dark] .bg-\[\#e8bc69\]\/10,
+[data-force-dark].bg-\[\#e8bc69\]\/10 {
+  background-color: rgba(232, 188, 105, 0.1) !important;
+}
+[data-force-dark] .bg-\[\#e8bc69\]\/15,
+[data-force-dark].bg-\[\#e8bc69\]\/15 {
+  background-color: rgba(232, 188, 105, 0.15) !important;
+}
+[data-force-dark] .bg-\[\#e8bc69\]\/20,
+[data-force-dark].bg-\[\#e8bc69\]\/20 {
+  background-color: rgba(232, 188, 105, 0.2) !important;
+}
+
+/* Borders */
+[data-force-dark] .border-\[\#334155\] {
+  border-color: #334155 !important;
+}
+[data-force-dark] .border-\[\#2A3754\] {
+  border-color: #2a3754 !important;
+}
+[data-force-dark] .border-\[\#1C2541\] {
+  border-color: #1c2541 !important;
+}
+[data-force-dark] .border-\[\#e8bc69\] {
+  border-color: #e8bc69 !important;
+}
+[data-force-dark] .border-\[\#e8bc69\]\/30 {
+  border-color: rgba(232, 188, 105, 0.3) !important;
+}
+[data-force-dark] .border-\[\#e8bc69\]\/40 {
+  border-color: rgba(232, 188, 105, 0.4) !important;
+}
+
+/* Text */
+[data-force-dark] .text-white {
+  color: #ffffff !important;
+}
+[data-force-dark] .text-\[\#0F172A\] {
+  color: #0f172a !important;
+}
+[data-force-dark] .text-\[\#94A3B8\] {
+  color: #94a3b8 !important;
+}
+[data-force-dark] .text-\[\#A0ABC0\] {
+  color: #a0abc0 !important;
+}
+[data-force-dark] .text-\[\#CBD5E1\] {
+  color: #cbd5e1 !important;
+}
+[data-force-dark] .text-\[\#e8bc69\] {
+  color: #e8bc69 !important;
+}
+
+/* Hovers inside force-dark scope */
+[data-force-dark] .hover\:bg-\[\#1E293B\]:hover {
+  background-color: #1e293b !important;
+}
+[data-force-dark] .hover\:bg-\[\#1E293B\]\/50:hover {
+  background-color: rgba(30, 41, 59, 0.5) !important;
+}
+[data-force-dark] .hover\:bg-\[\#0F172A\]:hover {
+  background-color: #0f172a !important;
+}
+[data-force-dark] .hover\:bg-\[\#e8bc69\]\/10:hover {
+  background-color: rgba(232, 188, 105, 0.1) !important;
+}
+[data-force-dark] .hover\:text-white:hover {
+  color: #ffffff !important;
+}
+[data-force-dark] .hover\:text-\[\#e8bc69\]:hover {
+  color: #e8bc69 !important;
+}
+[data-force-dark] .hover\:border-\[\#e8bc69\]:hover {
+  border-color: #e8bc69 !important;
+}
+[data-force-dark] .hover\:border-\[\#e8bc69\]\/60:hover {
+  border-color: rgba(232, 188, 105, 0.6) !important;
+}
+
+@media print {
+  body {
+    background: white !important;
+  }
+  header,
+  footer,
+  nav,
+  [data-force-dark] {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+  .print\:block {
+    display: block !important;
+  }
+
+  * {
+    color: black !important;
+    background: white !important;
+    border-color: #e5e7eb !important;
+    box-shadow: none !important;
+  }
+  svg {
+    max-width: 100%;
+  }
+  .recharts-wrapper {
+    page-break-inside: avoid;
+  }
 }

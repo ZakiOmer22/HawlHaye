@@ -1,24 +1,20 @@
 // HAWL — University of Hargeisa / CECIT
-// DRAFT v1 — owner: Abdiqadir Ibrahim (review: Zacki)
-// Changes from v0: blockedReason, soft delete, delegation status,
-// audit entity columns, Invite table, explicit onDelete, timestamps, indexes.
-//
-// BEFORE `migrate dev --name init`, confirm the three enums below match
-// packages/shared/src/roles.ts and status.ts EXACTLY. They are the one
-// thing that will break the web app and API if they disagree.
-// Validate with: npx prisma validate && npx prisma format
+// DRAFT v1.1 — owner: Maxamed (database owner), review: Zacki Omer
+// Changes from v1: Lockout fields, Restrict deletes (safety), custom indexes, directUrl.
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL")
 }
 
 // ─────────────────────────────────────────────────────────────
-// Enums — must mirror packages/shared
+// Enums
 // ─────────────────────────────────────────────────────────────
 
 enum Role {
@@ -101,8 +97,19 @@ model User {
   active        Boolean   @default(true)
   deactivatedAt DateTime?
   lastLoginAt   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+
+  twoFactorSecret     String?
+  twoFactorEnabled    Boolean   @default(false)
+  twoFactorChallenges TwoFactorChallenge[]
+
+  // NEW: Security Lockout fields
+  failedLoginCount   Int       @default(0)
+  lockedUntil        DateTime?
+  passwordChangedAt  DateTime?
+  mustChangePassword Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   ownedTasks      Task[]       @relation("TaskOwner")
   assignedTasks   Task[]       @relation("TaskAssigner")
@@ -115,11 +122,58 @@ model User {
   auditLogs       AuditLog[]
   sessions        Session[]
   invitesSent     Invite[]     @relation("InviteInviter")
+  passwordResets  PasswordReset[]
+  twoFAExemptUntil DateTime?
+
+  passkeys            Passkey[]
+  backupCodes BackupCode[]
 
   @@index([role])
   @@index([officeId])
   @@index([active])
   @@map("users")
+}
+
+model BackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String    @unique
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, usedAt])
+  @@map("backup_codes")
+}
+
+model Passkey {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialID String   @unique
+  publicKey    Bytes
+  counter      Int
+  transports   String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@map("passkeys")
+}
+
+model PasskeyChallenge {
+  id        String   @id @default(cuid())
+  userId    String?
+  email     String?
+  challenge String   @unique
+  createdAt DateTime @default(now())
+}
+
+model TwoFactorChallenge {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -128,7 +182,7 @@ model User {
 
 model Task {
   id          String     @id @default(cuid())
-  code        String     @unique // CECIT-YYYY-NNN, generated in a transaction
+  code        String     @unique // CECIT-YYYY-NNN
   title       String
   description String?
   categoryId  String
@@ -139,18 +193,18 @@ model Task {
   status      TaskStatus @default(UNASSIGNED)
 
   ownerId      String?
-  owner        User?   @relation("TaskOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  owner        User?   @relation("TaskOwner", fields: [ownerId], references: [id], onDelete: Restrict) // CHANGED
   assignedById String?
-  assignedBy   User?   @relation("TaskAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+  assignedBy   User?   @relation("TaskAssigner", fields: [assignedById], references: [id], onDelete: Restrict) // CHANGED
   createdById  String
   createdBy    User    @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
   dueDate       DateTime?
-  blockedReason String? // set when status = BLOCKED, cleared on move out
+  blockedReason String?
   completedAt   DateTime?
   cancelledAt   DateTime?
   cancelReason  String?
-  deletedAt     DateTime? // soft delete; every query filters deletedAt: null
+  deletedAt     DateTime? // soft delete
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -167,13 +221,18 @@ model Task {
   @@index([dueDate])
   @@index([status, dueDate])
   @@index([deletedAt])
+  // NEW Indexes
+  @@index([assignedById])
+  @@index([createdById])
+  @@index([createdAt])
+  @@index([completedAt])
   @@map("tasks")
 }
 
 model Delegation {
   id            String           @id @default(cuid())
   taskId        String
-  task          Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task          Task             @relation(fields: [taskId], references: [id], onDelete: Restrict) // CHANGED
   delegateId    String
   delegate      User             @relation("DelegationDelegate", fields: [delegateId], references: [id], onDelete: Restrict)
   delegatedById String
@@ -194,7 +253,7 @@ model Delegation {
 model Comment {
   id        String    @id @default(cuid())
   taskId    String
-  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Restrict) // CHANGED
   authorId  String
   author    User      @relation(fields: [authorId], references: [id], onDelete: Restrict)
   body      String
@@ -211,32 +270,27 @@ model Comment {
 model Attachment {
   id           String   @id @default(cuid())
   taskId       String
-  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Restrict) // CHANGED
   uploadedById String
   uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
-  fileName     String // original name, shown to users
+  fileName     String
   mimeType     String
   sizeBytes    Int
-  storageKey   String   @unique // random name on disk, never the original
+  storageKey   String   @unique
   createdAt    DateTime @default(now())
 
   @@index([taskId])
+  @@index([uploadedById]) // NEW
   @@map("attachments")
 }
-
-// ─────────────────────────────────────────────────────────────
-// Append-only history and audit
-// No update or delete routes exist for these two tables.
-// Day 5: REVOKE UPDATE, DELETE on both for the API's DB user.
-// ─────────────────────────────────────────────────────────────
 
 model TaskEvent {
   id        String   @id @default(cuid())
   taskId    String
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Restrict) // CHANGED
   actorId   String
   actor     User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
-  type      String // CREATED, ASSIGNED, STATUS_CHANGED, ... see docs/workflow.md
+  type      String
   fromValue String?
   toValue   String?
   note      String?
@@ -251,13 +305,15 @@ model TaskEvent {
 model AuditLog {
   id         String   @id @default(cuid())
   actorId    String?
-  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
-  action     String // user.deactivate, task.cancel, report.export, auth.login ...
-  entityType String? // "Task", "User", "Office"
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  action     String
+  entityType String?
   entityId   String?
   ip         String?
   userAgent  String?
   meta       Json?
+  hash       String   @default("")   // ← ADD
+  prevHash   String?                 // ← ADD
   createdAt  DateTime @default(now())
 
   @@index([action, createdAt])
@@ -267,21 +323,18 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// ─────────────────────────────────────────────────────────────
-// Sessions and invites (storage only — logic lives in the API)
-// ─────────────────────────────────────────────────────────────
-
 model Session {
   id         String    @id @default(cuid())
   userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash  String    @unique // never the raw token
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade) // Kept Cascade
+  tokenHash  String    @unique
   createdAt  DateTime  @default(now())
   lastSeenAt DateTime  @default(now())
   expiresAt  DateTime
   revokedAt  DateTime?
   ip         String?
   userAgent  String?
+  impersonatedById  String?
 
   @@index([userId])
   @@index([expiresAt])
@@ -304,12 +357,23 @@ model Invite {
 
   @@index([email])
   @@index([expiresAt])
+  @@index([invitedById]) // NEW
+  @@index([officeId]) // NEW
   @@map("invites")
 }
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
-// ─────────────────────────────────────────────────────────────
-// Task code sequence — lock this row inside the create transaction
-// ─────────────────────────────────────────────────────────────
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_resets")
+}
 
 model TaskCodeSequence {
   year      Int      @id

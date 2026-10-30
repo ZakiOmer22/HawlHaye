@@ -1,9 +1,24 @@
 {
-  "name": "HAWL - CECIT Task Management",
-  "short_name": "HAWL",
+  "name": "HAWLHAYE — University of Hargeisa CECIT",
+  "short_name": "HAWLHAYE",
+  "description": "Institutional task management for the University of Hargeisa CECIT.",
   "start_url": "/board",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#F8FAFC",
-  "theme_color": "#0A1628",
-  "icons": []
+  "orientation": "any",
+  "background_color": "#0F172A",
+  "theme_color": "#e8bc69",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["productivity", "education"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
 }
