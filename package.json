@@ -13,6 +13,7 @@
   "scripts": {
     "dev:api": "npm run build -w @hawl/shared && npm run dev -w @hawl/api",
     "dev:web": "npm run build -w @hawl/shared && npm run dev -w @hawl/web",
+    "dev:studio": "npx prisma studio --schema=apps/api/prisma/schema.prisma",
     "build": "npm run build -w @hawl/shared && npm run build -w @hawl/api && npm run build -w @hawl/web",
     "typecheck": "npm run build -w @hawl/shared && npm run typecheck -w @hawl/api && npm run typecheck -w @hawl/web",
     "lint": "eslint .",

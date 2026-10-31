@@ -9,6 +9,7 @@ import { reportsRouter } from "./reports/routes";
 import { wellKnownRouter } from "./well-known/routes";
 import { searchRouter } from "./search/routes";
 import { notificationsRouter } from "./notifications/routes";
+import { helpRouter } from "./help/routes";
 
 export function registerModules(app: Express): void {
   app.use("/.well-known", wellKnownRouter);
@@ -23,4 +24,5 @@ export function registerModules(app: Express): void {
   app.use("/api/v1/reports", reportsRouter);
   app.use("/api/v1/search", searchRouter);
   app.use("/api/v1/notifications", notificationsRouter);
+  app.use("/api/v1/help", helpRouter);
 }

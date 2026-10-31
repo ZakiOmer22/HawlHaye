@@ -86,6 +86,40 @@ model Category {
   @@map("categories")
 }
 
+// ─────────────────────────────────────────────────────────────
+// Help Center / Training Materials
+// ─────────────────────────────────────────────────────────────
+
+model HelpCategory {
+  id        String        @id @default(cuid())
+  name      String
+  slug      String        @unique
+  icon      String? // e.g., "BookOpen", "ShieldCheck" (Lucide icon name)
+  order     Int           @default(0)
+  articles  HelpArticle[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@map("help_categories")
+}
+
+model HelpArticle {
+  id         String       @id @default(cuid())
+  categoryId String
+  category   HelpCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  title      String
+  content    String       @db.Text // Markdown or HTML content
+  videoUrl   String? // Optional: YouTube embed, Vimeo, or MP4
+  fileUrl    String? // Optional: Link to a PDF upload
+  order      Int          @default(0)
+  published  Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([categoryId])
+  @@map("help_articles")
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
@@ -99,7 +133,7 @@ model User {
   lastLoginAt   DateTime?
 
   twoFactorSecret     String?
-  twoFactorEnabled    Boolean   @default(false)
+  twoFactorEnabled    Boolean              @default(false)
   twoFactorChallenges TwoFactorChallenge[]
 
   // NEW: Security Lockout fields
@@ -110,22 +144,23 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  onboardingCompletedAt DateTime?
 
-  ownedTasks      Task[]       @relation("TaskOwner")
-  assignedTasks   Task[]       @relation("TaskAssigner")
-  createdTasks    Task[]       @relation("TaskCreator")
-  delegationsGot  Delegation[] @relation("DelegationDelegate")
-  delegationsMade Delegation[] @relation("DelegationBy")
-  comments        Comment[]
-  attachments     Attachment[]
-  events          TaskEvent[]
-  auditLogs       AuditLog[]
-  sessions        Session[]
-  invitesSent     Invite[]     @relation("InviteInviter")
-  passwordResets  PasswordReset[]
+  ownedTasks       Task[]          @relation("TaskOwner")
+  assignedTasks    Task[]          @relation("TaskAssigner")
+  createdTasks     Task[]          @relation("TaskCreator")
+  delegationsGot   Delegation[]    @relation("DelegationDelegate")
+  delegationsMade  Delegation[]    @relation("DelegationBy")
+  comments         Comment[]
+  attachments      Attachment[]
+  events           TaskEvent[]
+  auditLogs        AuditLog[]
+  sessions         Session[]
+  invitesSent      Invite[]        @relation("InviteInviter")
+  passwordResets   PasswordReset[]
   twoFAExemptUntil DateTime?
 
-  passkeys            Passkey[]
+  passkeys    Passkey[]
   backupCodes BackupCode[]
 
   @@index([role])
@@ -312,8 +347,8 @@ model AuditLog {
   ip         String?
   userAgent  String?
   meta       Json?
-  hash       String   @default("")   // ← ADD
-  prevHash   String?                 // ← ADD
+  hash       String   @default("") // ← ADD
+  prevHash   String? // ← ADD
   createdAt  DateTime @default(now())
 
   @@index([action, createdAt])
@@ -324,17 +359,17 @@ model AuditLog {
 }
 
 model Session {
-  id         String    @id @default(cuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade) // Kept Cascade
-  tokenHash  String    @unique
-  createdAt  DateTime  @default(now())
-  lastSeenAt DateTime  @default(now())
-  expiresAt  DateTime
-  revokedAt  DateTime?
-  ip         String?
-  userAgent  String?
-  impersonatedById  String?
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade) // Kept Cascade
+  tokenHash        String    @unique
+  createdAt        DateTime  @default(now())
+  lastSeenAt       DateTime  @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  ip               String?
+  userAgent        String?
+  impersonatedById String?
 
   @@index([userId])
   @@index([expiresAt])
@@ -361,6 +396,7 @@ model Invite {
   @@index([officeId]) // NEW
   @@map("invites")
 }
+
 model PasswordReset {
   id        String    @id @default(cuid())
   userId    String

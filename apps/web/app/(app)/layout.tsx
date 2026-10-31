@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { AppShell } from "@/components/layout/AppShell";
 import { Toaster } from "react-hot-toast";
+import { SpotlightTour } from "@/components/layout/SpotlightTour";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -23,6 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           success: { iconTheme: { primary: "#e8bc69", secondary: "#0F172A" } },
         }}
       />
+      <SpotlightTour/>
     </AppShell>
   );
 }

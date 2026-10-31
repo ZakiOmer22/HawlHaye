@@ -107,16 +107,11 @@ function flattenBoard(raw: BoardRaw | undefined): Task[] {
 
 function priorityRank(p: string): number {
   switch (p) {
-    case "URGENT":
-      return 0;
-    case "HIGH":
-      return 1;
-    case "MEDIUM":
-      return 2;
-    case "LOW":
-      return 3;
-    default:
-      return 4;
+    case "URGENT": return 0;
+    case "HIGH": return 1;
+    case "MEDIUM": return 2;
+    case "LOW": return 3;
+    default: return 4;
   }
 }
 
@@ -139,12 +134,7 @@ export default function DashboardPage() {
 
         const all = flattenBoard(board.data);
         const counts: Record<TaskStatus, number> = {
-          UNASSIGNED: 0,
-          ASSIGNED: 0,
-          IN_PROGRESS: 0,
-          BLOCKED: 0,
-          REVIEW: 0,
-          COMPLETED: 0,
+          UNASSIGNED: 0, ASSIGNED: 0, IN_PROGRESS: 0, BLOCKED: 0, REVIEW: 0, COMPLETED: 0,
         };
         for (const task of all) counts[task.status] = (counts[task.status] ?? 0) + 1;
 
@@ -183,11 +173,7 @@ export default function DashboardPage() {
     const now = Date.now();
     const weekAhead = now + 7 * 24 * 3600 * 1000;
 
-    let dueThisWeek = 0,
-      overdue = 0,
-      blocked = 0,
-      inReview = 0,
-      completed = 0;
+    let dueThisWeek = 0, overdue = 0, blocked = 0, inReview = 0, completed = 0;
     for (const task of allTasks) {
       const due = task.dueDate ? new Date(task.dueDate).getTime() : null;
       if (task.status === "COMPLETED") {
@@ -207,10 +193,7 @@ export default function DashboardPage() {
   const myQueue = useMemo(() => {
     if (!allTasks || !user) return [];
     return allTasks
-      .filter(
-        (task) =>
-          task.status !== "COMPLETED" && (task.ownerId === user.id || task.createdById === user.id),
-      )
+      .filter((task) => task.status !== "COMPLETED" && (task.ownerId === user.id || task.createdById === user.id))
       .sort((a, b) => {
         const aOver = isOverdue(a.dueDate, a.status);
         const bOver = isOverdue(b.dueDate, b.status);
@@ -226,11 +209,7 @@ export default function DashboardPage() {
   const urgentTasks = useMemo(() => {
     if (!allTasks) return [];
     return allTasks
-      .filter(
-        (task) =>
-          task.status !== "COMPLETED" &&
-          (task.status === "BLOCKED" || isOverdue(task.dueDate, task.status)),
-      )
+      .filter((task) => task.status !== "COMPLETED" && (task.status === "BLOCKED" || isOverdue(task.dueDate, task.status)))
       .sort((a, b) => {
         if (a.status === "BLOCKED" && b.status !== "BLOCKED") return -1;
         if (b.status === "BLOCKED" && a.status !== "BLOCKED") return 1;
@@ -261,17 +240,10 @@ export default function DashboardPage() {
 
       if (dayTasks.length > 0) {
         const label =
-          i === 0
-            ? t("dashboard.upcoming.today")
-            : i === 1
-              ? t("dashboard.upcoming.tomorrow")
-              : dayStart.toLocaleDateString(undefined, { weekday: "long" });
-        days.push({
-          key: dayStart.toISOString().slice(0, 10),
-          label,
-          date: dayStart,
-          tasks: dayTasks,
-        });
+          i === 0 ? t("dashboard.upcoming.today")
+          : i === 1 ? t("dashboard.upcoming.tomorrow")
+          : dayStart.toLocaleDateString(undefined, { weekday: "long" });
+        days.push({ key: dayStart.toISOString().slice(0, 10), label, date: dayStart, tasks: dayTasks });
       }
     }
     return days;
@@ -289,9 +261,7 @@ export default function DashboardPage() {
       if (isOverdue(task.dueDate, task.status)) current.overdue++;
       map.set(key, current);
     }
-    return Array.from(map.values())
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
+    return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 5);
   }, [allTasks, t]);
 
   const isLeader = user ? LEADERSHIP.has(user.role) : false;
@@ -299,18 +269,12 @@ export default function DashboardPage() {
 
   if (error && !allTasks) {
     return (
-      <div className="flex items-center justify-center h-[50vh]">
-        <div
-          role="alert"
-          className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6 text-red-500 max-w-md text-center"
-        >
+      <div className="flex items-center justify-center h-[50vh] p-4">
+        <div role="alert" className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6 text-red-500 max-w-md text-center">
           <AlertTriangle aria-hidden="true" className="mx-auto mb-3 h-8 w-8" />
           <h2 className="text-lg font-bold mb-1">{t("dashboard.loadError")}</h2>
           <p className="text-sm mb-4">{error}</p>
-          <button
-            onClick={() => void load()}
-            className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2 text-sm font-bold text-accent-text hover:bg-accent-hover"
-          >
+          <button onClick={() => void load()} className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2 text-sm font-bold text-accent-text hover:bg-accent-hover">
             <RefreshCw size={16} aria-hidden="true" /> {t("common.retry")}
           </button>
         </div>
@@ -322,7 +286,7 @@ export default function DashboardPage() {
     return (
       <div className="w-full max-w-[1600px] mx-auto p-4 md:p-8 space-y-6" aria-busy="true">
         <div className="h-24 w-full rounded-2xl bg-panel animate-pulse" />
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="h-32 rounded-2xl bg-panel border border-border animate-pulse" />
           ))}
@@ -337,34 +301,29 @@ export default function DashboardPage() {
   const roleLabel = t(ROLE_KEY[user.role] ?? "role.administrator");
 
   const summaryText =
-    totalCount === 0
-      ? t("dashboard.summary.noTasks")
-      : stats.overdue > 0
-        ? t("dashboard.summary.withOverdue", { count: totalCount, overdue: stats.overdue })
-        : t("dashboard.summary.clear", { count: totalCount });
+    totalCount === 0 ? t("dashboard.summary.noTasks")
+    : stats.overdue > 0 ? t("dashboard.summary.withOverdue", { count: totalCount, overdue: stats.overdue })
+    : t("dashboard.summary.clear", { count: totalCount });
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto p-4 md:p-8 space-y-6 pb-12">
+    <div className="w-full max-w-[1600px] mx-auto p-3 sm:p-5 md:p-8 space-y-4 sm:space-y-6 pb-12">
       {/* Greeting Header */}
-      <header className="rounded-2xl border border-border bg-gradient-to-br from-panel via-panel to-app p-6 sm:p-8 relative overflow-hidden shadow-sm">
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(232,188,105,0.08),_transparent_55%)] pointer-events-none"
-        />
+      <header className="rounded-2xl border border-border bg-gradient-to-br from-panel via-panel to-app p-4 sm:p-6 md:p-8 relative overflow-hidden shadow-sm">
+        <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(232,188,105,0.08),_transparent_55%)] pointer-events-none" />
         <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-xs font-extrabold uppercase tracking-[0.22em] text-accent">
+            <p className="text-[10px] sm:text-xs font-extrabold uppercase tracking-[0.22em] text-accent truncate">
               {t("dashboard.overviewAs", { role: roleLabel })}
             </p>
-            <h1 className="mt-1 text-2xl sm:text-3xl lg:text-4xl font-black text-primary leading-tight break-words">
+            <h1 className="mt-1 text-xl sm:text-3xl lg:text-4xl font-black text-primary leading-tight break-words">
               {t(greetingKey())}, {firstName}
             </h1>
-            <p className="mt-2 text-sm text-secondary">{summaryText}</p>
+            <p className="mt-1.5 sm:mt-2 text-xs sm:text-sm text-secondary">{summaryText}</p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 mt-2 sm:mt-0">
             <Link
               href="/board"
-              className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-accent-text hover:bg-accent-hover shadow-sm transition"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-xs sm:text-sm font-bold text-accent-text hover:bg-accent-hover shadow-sm transition whitespace-nowrap flex-1 sm:flex-none"
             >
               <Plus size={16} aria-hidden="true" /> {t("dashboard.newTask")}
             </Link>
@@ -372,83 +331,38 @@ export default function DashboardPage() {
               onClick={() => void load()}
               disabled={refreshing}
               aria-label={t("dashboard.refresh")}
-              className="flex items-center justify-center rounded-xl border border-border bg-app/50 p-2.5 text-muted hover:text-primary transition disabled:opacity-50"
+              className="flex items-center justify-center rounded-xl border border-border bg-app/50 p-2.5 text-muted hover:text-primary transition disabled:opacity-50 shrink-0"
             >
-              <RefreshCw
-                size={16}
-                aria-hidden="true"
-                className={refreshing ? "animate-spin" : ""}
-              />
+              <RefreshCw size={16} aria-hidden="true" className={refreshing ? "animate-spin" : ""} />
             </button>
           </div>
         </div>
       </header>
 
       {/* Key Metrics */}
-      <section aria-label="Key metrics" className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatCard
-          label={t("dashboard.stat.dueThisWeek")}
-          value={stats.dueThisWeek}
-          icon={<CalendarDays size={20} />}
-          color="text-amber-500"
-          bg="bg-amber-500/10 border-amber-500/20"
-          href="/my-tasks"
-        />
-        <StatCard
-          label={t("dashboard.stat.overdue")}
-          value={stats.overdue}
-          icon={<AlertTriangle size={20} />}
-          color="text-red-500"
-          bg="bg-red-500/10 border-red-500/20"
-          href="/my-tasks"
-        />
-        <StatCard
-          label={t("dashboard.stat.blocked")}
-          value={stats.blocked}
-          icon={<Ban size={20} />}
-          color="text-rose-500"
-          bg="bg-rose-500/10 border-rose-500/20"
-          href="/board"
-        />
-        <StatCard
-          label={t("dashboard.stat.inReview")}
-          value={stats.inReview}
-          icon={<Clock size={20} />}
-          color="text-violet-500"
-          bg="bg-violet-500/10 border-violet-500/20"
-          href="/review"
-        />
-        <StatCard
-          label={t("dashboard.stat.completed")}
-          value={stats.completed}
-          icon={<CheckCircle2 size={20} />}
-          color="text-emerald-500"
-          bg="bg-emerald-500/10 border-emerald-500/20"
-          href="/board"
-        />
+      <section aria-label="Key metrics" className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-5">
+        <StatCard label={t("dashboard.stat.dueThisWeek")} value={stats.dueThisWeek} icon={<CalendarDays size={18} />} color="text-amber-500" bg="bg-amber-500/10 border-amber-500/20" href="/my-tasks" />
+        <StatCard label={t("dashboard.stat.overdue")} value={stats.overdue} icon={<AlertTriangle size={18} />} color="text-red-500" bg="bg-red-500/10 border-red-500/20" href="/my-tasks" />
+        <StatCard label={t("dashboard.stat.blocked")} value={stats.blocked} icon={<Ban size={18} />} color="text-rose-500" bg="bg-rose-500/10 border-rose-500/20" href="/board" />
+        <StatCard label={t("dashboard.stat.inReview")} value={stats.inReview} icon={<Clock size={18} />} color="text-violet-500" bg="bg-violet-500/10 border-violet-500/20" href="/review" />
+        <StatCard label={t("dashboard.stat.completed")} value={stats.completed} icon={<CheckCircle2 size={18} />} color="text-emerald-500" bg="bg-emerald-500/10 border-emerald-500/20" href="/board" />
       </section>
 
       {/* My Queue + Quick Actions */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <section
-          aria-label={t("dashboard.queue.title")}
-          className="lg:col-span-2 rounded-2xl border border-border bg-panel p-6 sm:p-8 shadow-sm"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-              <ListChecks size={18} aria-hidden="true" className="text-accent" />{" "}
-              {t("dashboard.queue.title")}
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+        <section aria-label={t("dashboard.queue.title")} className="lg:col-span-2 rounded-2xl border border-border bg-panel p-4 sm:p-6 md:p-8 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base sm:text-lg font-bold text-primary flex items-center gap-2 min-w-0">
+              <ListChecks size={18} aria-hidden="true" className="text-accent shrink-0" />{" "}
+              <span className="truncate">{t("dashboard.queue.title")}</span>
             </h2>
-            <Link
-              href="/my-tasks"
-              className="text-xs font-bold text-accent hover:text-accent-hover transition flex items-center gap-1"
-            >
+            <Link href="/my-tasks" className="text-[10px] sm:text-xs font-bold text-accent hover:text-accent-hover transition flex items-center gap-1 shrink-0 ml-2">
               {t("dashboard.queue.viewAll")} <ArrowRight size={14} className="rtl:rotate-180" />
             </Link>
           </div>
 
           {myQueue.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
+            <div className="flex flex-col items-center justify-center py-8 text-center">
               <CheckCircle2 size={32} className="text-emerald-500 mb-3" />
               <p className="text-sm font-bold text-primary">{t("dashboard.queue.empty.title")}</p>
               <p className="text-xs text-muted">{t("dashboard.queue.empty.subtitle")}</p>
@@ -459,26 +373,19 @@ export default function DashboardPage() {
                 const over = isOverdue(task.dueDate, task.status);
                 return (
                   <li key={task.id}>
-                    <Link
-                      href={`/tasks/${task.id}`}
-                      className="group flex items-center gap-4 rounded-xl border border-border bg-app px-4 py-3 transition hover:border-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                    >
-                      <div
-                        className={`h-2 w-2 shrink-0 rounded-full ${STATUS_COLORS[task.status]}`}
-                      />
+                    <Link href={`/tasks/${task.id}`} className="group flex items-center gap-3 rounded-xl border border-border bg-app px-3 sm:px-4 py-2.5 sm:py-3 transition hover:border-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                      <div className={`h-2 w-2 shrink-0 rounded-full ${STATUS_COLORS[task.status]}`} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-primary group-hover:text-accent transition-colors truncate">
+                        <p className="text-xs sm:text-sm font-bold text-primary group-hover:text-accent transition-colors truncate">
                           {task.title}
                         </p>
-                        <div className="flex items-center gap-2 mt-0.5 text-[11px] font-bold text-muted">
-                          <span>{task.code}</span>
-                          <span>•</span>
-                          <span>{t(STATUS_KEY[task.status])}</span>
+                        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] sm:text-[11px] font-bold text-muted">
+                          <span className="truncate">{task.code}</span>
+                          <span className="shrink-0">•</span>
+                          <span className="truncate">{t(STATUS_KEY[task.status])}</span>
                         </div>
                       </div>
-                      <span
-                        className={`shrink-0 text-[11px] font-bold ${over ? "text-red-500" : "text-muted"}`}
-                      >
+                      <span className={`shrink-0 text-[10px] sm:text-[11px] font-bold ${over ? "text-red-500" : "text-muted"} hidden sm:inline`}>
                         {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "—"}
                       </span>
                     </Link>
@@ -489,72 +396,45 @@ export default function DashboardPage() {
           )}
         </section>
 
-        <section
-          aria-label={t("dashboard.actions.title")}
-          className="rounded-2xl border border-border bg-panel p-6 sm:p-8 shadow-sm"
-        >
-          <h2 className="text-lg font-bold text-primary mb-4 flex items-center gap-2">
-            <LayoutGrid size={18} aria-hidden="true" className="text-accent" />{" "}
+        <section aria-label={t("dashboard.actions.title")} className="rounded-2xl border border-border bg-panel p-4 sm:p-6 md:p-8 shadow-sm">
+          <h2 className="text-base sm:text-lg font-bold text-primary mb-3 sm:mb-4 flex items-center gap-2">
+            <LayoutGrid size={18} aria-hidden="true" className="text-accent shrink-0" />{" "}
             {t("dashboard.actions.title")}
           </h2>
-          <div className="grid grid-cols-2 gap-3">
-            <QuickAction
-              href="/board"
-              icon={<LayoutGrid size={18} />}
-              label={t("dashboard.actions.board")}
-            />
-            <QuickAction
-              href="/my-tasks"
-              icon={<ListChecks size={18} />}
-              label={t("dashboard.actions.myTasks")}
-            />
-            <QuickAction
-              href="/review"
-              icon={<Clock size={18} />}
-              label={t("dashboard.actions.review")}
-            />
-            {isLeader && (
-              <QuickAction
-                href="/reports"
-                icon={<FileBarChart size={18} />}
-                label={t("dashboard.actions.reports")}
-              />
-            )}
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
+            <QuickAction href="/board" icon={<LayoutGrid size={18} />} label={t("dashboard.actions.board")} />
+            <QuickAction href="/my-tasks" icon={<ListChecks size={18} />} label={t("dashboard.actions.myTasks")} />
+            <QuickAction href="/review" icon={<Clock size={18} />} label={t("dashboard.actions.review")} />
+            {isLeader && <QuickAction href="/reports" icon={<FileBarChart size={18} />} label={t("dashboard.actions.reports")} />}
           </div>
         </section>
       </div>
 
       {/* Workload + Needs Attention */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section
-          aria-label={t("dashboard.workload.title")}
-          className="rounded-2xl border border-border bg-panel p-6 sm:p-8 shadow-sm"
-        >
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-              <TrendingUp size={18} aria-hidden="true" className="text-accent" />{" "}
-              {t("dashboard.workload.title")}
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+        <section aria-label={t("dashboard.workload.title")} className="rounded-2xl border border-border bg-panel p-4 sm:p-6 md:p-8 shadow-sm">
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <h2 className="text-base sm:text-lg font-bold text-primary flex items-center gap-2 min-w-0">
+              <TrendingUp size={18} aria-hidden="true" className="text-accent shrink-0" />{" "}
+              <span className="truncate">{t("dashboard.workload.title")}</span>
             </h2>
-            <span className="text-xs font-bold text-secondary bg-app px-3 py-1 rounded-lg border border-border">
+            <span className="text-[10px] sm:text-xs font-bold text-secondary bg-app px-2 py-1 rounded-lg border border-border shrink-0 ms-2">
               {t("dashboard.workload.total", { count: totalCount })}
             </span>
           </div>
 
-          <div className="space-y-5">
+          <div className="space-y-3 sm:space-y-5">
             {STATUSES.map((status) => {
               const count = statusCounts[status];
               const percentage = totalCount > 0 ? (count / maxCount) * 100 : 0;
               return (
                 <div key={status}>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-bold text-primary">{t(STATUS_KEY[status])}</span>
-                    <span className="text-xs font-bold text-secondary">{count}</span>
+                  <div className="flex justify-between items-center mb-1 sm:mb-2 gap-2">
+                    <span className="text-xs sm:text-sm font-bold text-primary truncate">{t(STATUS_KEY[status])}</span>
+                    <span className="text-[10px] sm:text-xs font-bold text-secondary shrink-0">{count}</span>
                   </div>
-                  <div className="h-3 w-full rounded-full bg-app border border-border overflow-hidden">
-                    <div
-                      className={`h-full ${STATUS_COLORS[status]} rounded-full transition-all duration-1000 ease-out`}
-                      style={{ width: `${percentage}%` }}
-                    />
+                  <div className="h-2 sm:h-3 w-full rounded-full bg-app border border-border overflow-hidden">
+                    <div className={`h-full ${STATUS_COLORS[status]} rounded-full transition-all duration-1000 ease-out`} style={{ width: `${percentage}%` }} />
                   </div>
                 </div>
               );
@@ -562,59 +442,41 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section
-          aria-label={t("dashboard.attention.title")}
-          className="rounded-2xl border border-border bg-panel p-6 sm:p-8 shadow-sm flex flex-col"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-              <AlertTriangle size={18} aria-hidden="true" className="text-red-500" />{" "}
-              {t("dashboard.attention.title")}
+        <section aria-label={t("dashboard.attention.title")} className="rounded-2xl border border-border bg-panel p-4 sm:p-6 md:p-8 shadow-sm flex flex-col">
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <h2 className="text-base sm:text-lg font-bold text-primary flex items-center gap-2 min-w-0">
+              <AlertTriangle size={18} aria-hidden="true" className="text-red-500 shrink-0" />{" "}
+              <span className="truncate">{t("dashboard.attention.title")}</span>
             </h2>
-            <Link
-              href="/board"
-              className="text-xs font-bold text-accent hover:text-accent-hover transition flex items-center gap-1"
-            >
-              {t("dashboard.attention.viewBoard")}{" "}
-              <ArrowRight size={14} className="rtl:rotate-180" />
+            <Link href="/board" className="text-[10px] sm:text-xs font-bold text-accent hover:text-accent-hover transition flex items-center gap-1 shrink-0 ml-2">
+              {t("dashboard.attention.viewBoard")} <ArrowRight size={14} className="rtl:rotate-180" />
             </Link>
           </div>
 
-          <div className="flex-1 space-y-3">
+          <div className="flex-1 space-y-2 sm:space-y-3">
             {urgentTasks.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center py-8">
+              <div className="flex flex-col items-center justify-center h-full text-center py-6 sm:py-8">
                 <CheckCircle2 size={32} className="text-emerald-500 mb-3" />
-                <p className="text-sm font-bold text-primary">
-                  {t("dashboard.attention.empty.title")}
-                </p>
+                <p className="text-sm font-bold text-primary">{t("dashboard.attention.empty.title")}</p>
                 <p className="text-xs text-muted">{t("dashboard.attention.empty.subtitle")}</p>
               </div>
             ) : (
-              <ul className="space-y-3">
+              <ul className="space-y-2 sm:space-y-3">
                 {urgentTasks.map((task) => {
                   const isBlocked = task.status === "BLOCKED";
-                  const label = isBlocked
-                    ? t("dashboard.attention.blocked")
-                    : t("dashboard.attention.overdue");
+                  const label = isBlocked ? t("dashboard.attention.blocked") : t("dashboard.attention.overdue");
                   return (
                     <li key={task.id}>
-                      <Link
-                        href={`/tasks/${task.id}`}
-                        className="group flex items-start gap-4 rounded-xl border border-border bg-app p-4 transition hover:border-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                      >
-                        <div
-                          className={`mt-1 h-2 w-2 shrink-0 rounded-full ${isBlocked ? "bg-red-500" : "bg-amber-500"}`}
-                        />
+                      <Link href={`/tasks/${task.id}`} className="group flex items-start gap-3 rounded-xl border border-border bg-app p-3 transition hover:border-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                        <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${isBlocked ? "bg-red-500" : "bg-amber-500"}`} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-primary group-hover:text-accent transition-colors truncate">
+                          <p className="text-xs sm:text-sm font-bold text-primary group-hover:text-accent transition-colors truncate">
                             {task.title}
                           </p>
-                          <div className="flex items-center gap-3 mt-1.5 text-[11px] font-bold text-muted">
-                            <span>{task.code}</span>
-                            <span>•</span>
-                            <span className={isBlocked ? "text-red-500" : "text-amber-500"}>
-                              {label}
-                            </span>
+                          <div className="flex items-center gap-1.5 mt-1 text-[10px] sm:text-[11px] font-bold text-muted">
+                            <span className="truncate">{task.code}</span>
+                            <span className="shrink-0">•</span>
+                            <span className={`shrink-0 ${isBlocked ? "text-red-500" : "text-amber-500"}`}>{label}</span>
                           </div>
                         </div>
                       </Link>
@@ -628,63 +490,51 @@ export default function DashboardPage() {
       </div>
 
       {/* Upcoming + Team Workload */}
-      <div className={`grid gap-6 ${showTeamWorkload ? "lg:grid-cols-3" : ""}`}>
-        <section
-          aria-label={t("dashboard.upcoming.title")}
-          className={`rounded-2xl border border-border bg-panel p-6 sm:p-8 shadow-sm ${showTeamWorkload ? "lg:col-span-2" : ""}`}
-        >
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-              <CalendarDays size={18} aria-hidden="true" className="text-accent" />{" "}
-              {t("dashboard.upcoming.title")}
+      <div className={`grid gap-4 sm:gap-6 ${showTeamWorkload ? "lg:grid-cols-3" : ""}`}>
+        <section aria-label={t("dashboard.upcoming.title")} className={`rounded-2xl border border-border bg-panel p-4 sm:p-6 md:p-8 shadow-sm ${showTeamWorkload ? "lg:col-span-2" : ""}`}>
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <h2 className="text-base sm:text-lg font-bold text-primary flex items-center gap-2 min-w-0">
+              <CalendarDays size={18} aria-hidden="true" className="text-accent shrink-0" />{" "}
+              <span className="truncate">{t("dashboard.upcoming.title")}</span>
             </h2>
-            <span className="text-xs font-bold text-secondary">
-              {t("dashboard.upcoming.dueCount", {
-                count: upcomingByDay.reduce((a, d) => a + d.tasks.length, 0),
-              })}
+            <span className="text-[10px] sm:text-xs font-bold text-secondary shrink-0 ml-2">
+              {t("dashboard.upcoming.dueCount", { count: upcomingByDay.reduce((a, d) => a + d.tasks.length, 0) })}
             </span>
           </div>
 
           {upcomingByDay.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
+            <div className="flex flex-col items-center justify-center py-8 text-center">
               <Inbox size={32} className="text-muted opacity-50 mb-3" />
-              <p className="text-sm font-bold text-primary">
-                {t("dashboard.upcoming.empty.title")}
-              </p>
+              <p className="text-sm font-bold text-primary">{t("dashboard.upcoming.empty.title")}</p>
               <p className="text-xs text-muted">{t("dashboard.upcoming.empty.subtitle")}</p>
             </div>
           ) : (
-            <ul className="space-y-4">
+            <ul className="space-y-3 sm:space-y-4">
               {upcomingByDay.map((day) => {
                 const shown = day.tasks.slice(0, 2);
                 const rest = day.tasks.length - shown.length;
                 return (
                   <li key={day.key}>
-                    <div className="flex items-center gap-3 mb-2">
-                      <p className="text-[11px] font-extrabold uppercase tracking-wider text-accent">
+                    <div className="flex items-center gap-2 sm:gap-3 mb-1.5 sm:mb-2 flex-wrap">
+                      <p className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-accent truncate max-w-[60%]">
                         {day.label}
                       </p>
-                      <span className="text-[10px] font-bold text-secondary">
+                      <span className="text-[9px] sm:text-[10px] font-bold text-secondary shrink-0">
                         {day.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                       </span>
-                      <span className="ms-auto text-[10px] font-bold text-secondary">
+                      <span className="ms-auto text-[9px] sm:text-[10px] font-bold text-secondary shrink-0">
                         {day.tasks.length}
                       </span>
                     </div>
                     <ul className="space-y-1.5">
                       {shown.map((task) => (
                         <li key={task.id}>
-                          <Link
-                            href={`/tasks/${task.id}`}
-                            className="group flex items-center gap-3 rounded-lg border border-border bg-app px-3 py-2 text-sm hover:border-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                          >
-                            <span
-                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_COLORS[task.status]}`}
-                            />
-                            <span className="flex-1 truncate text-primary group-hover:text-accent transition-colors">
+                          <Link href={`/tasks/${task.id}`} className="group flex items-center gap-2 sm:gap-3 rounded-lg border border-border bg-app px-2 sm:px-3 py-2 text-xs sm:text-sm hover:border-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_COLORS[task.status]}`} />
+                            <span className="flex-1 min-w-0 truncate text-primary group-hover:text-accent transition-colors">
                               {task.title}
                             </span>
-                            <span className="shrink-0 text-[10px] font-bold text-secondary">
+                            <span className="shrink-0 text-[9px] sm:text-[10px] font-bold text-secondary hidden sm:inline">
                               {task.priority}
                             </span>
                           </Link>
@@ -692,14 +542,8 @@ export default function DashboardPage() {
                       ))}
                     </ul>
                     {rest > 0 && (
-                      <Link
-                        href="/board"
-                        className="mt-1 inline-block text-[11px] font-bold text-accent hover:text-accent-hover"
-                      >
-                        {t("dashboard.upcoming.more", {
-                          count: rest,
-                          day: day.label.toLowerCase(),
-                        })}
+                      <Link href="/board" className="mt-1.5 sm:mt-1 inline-block text-[10px] sm:text-[11px] font-bold text-accent hover:text-accent-hover">
+                        {t("dashboard.upcoming.more", { count: rest, day: day.label.toLowerCase() })}
                       </Link>
                     )}
                   </li>
@@ -710,39 +554,28 @@ export default function DashboardPage() {
         </section>
 
         {showTeamWorkload && (
-          <section
-            aria-label={t("dashboard.team.title")}
-            className="rounded-2xl border border-border bg-panel p-6 sm:p-8 shadow-sm"
-          >
-            <h2 className="text-lg font-bold text-primary mb-6 flex items-center gap-2">
-              <Users size={18} aria-hidden="true" className="text-accent" />{" "}
+          <section aria-label={t("dashboard.team.title")} className="rounded-2xl border border-border bg-panel p-4 sm:p-6 md:p-8 shadow-sm">
+            <h2 className="text-base sm:text-lg font-bold text-primary mb-4 sm:mb-6 flex items-center gap-2">
+              <Users size={18} aria-hidden="true" className="text-accent shrink-0" />{" "}
               {t("dashboard.team.title")}
             </h2>
             <ul className="space-y-3">
               {teamWorkload.map((member) => (
                 <li key={member.name}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-bold text-primary truncate">{member.name}</span>
-                    <span className="text-xs font-bold text-secondary shrink-0 ms-2">
+                  <div className="flex items-center justify-between mb-1 gap-2">
+                    <span className="text-xs sm:text-sm font-bold text-primary truncate min-w-0">{member.name}</span>
+                    <span className="text-[10px] sm:text-xs font-bold text-secondary shrink-0">
                       {member.count}
-                      {member.overdue > 0 && (
-                        <span className="text-red-500">
-                          {" "}
-                          · {t("dashboard.team.late", { count: member.overdue })}
-                        </span>
-                      )}
+                      {member.overdue > 0 && <span className="text-red-500"> · {t("dashboard.team.late", { count: member.overdue })}</span>}
                     </span>
                   </div>
                   <div className="h-1.5 w-full rounded-full bg-app overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${member.overdue > 0 ? "bg-red-500/70" : "bg-accent/60"}`}
-                      style={{ width: `${(member.count / (teamWorkload[0]?.count || 1)) * 100}%` }}
-                    />
+                    <div className={`h-full rounded-full ${member.overdue > 0 ? "bg-red-500/70" : "bg-accent/60"}`} style={{ width: `${(member.count / (teamWorkload[0]?.count || 1)) * 100}%` }} />
                   </div>
                 </li>
               ))}
             </ul>
-            <p className="mt-4 text-[11px] text-muted leading-relaxed">
+            <p className="mt-4 text-[10px] sm:text-[11px] text-muted leading-relaxed">
               {t("dashboard.team.footnote")}
             </p>
           </section>
@@ -752,41 +585,24 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  icon,
-  color,
-  bg,
-  href,
-}: {
-  label: string;
-  value: number;
-  icon: React.ReactNode;
-  color: string;
-  bg: string;
-  href?: string;
-}) {
+function StatCard({ label, value, icon, color, bg, href }: { label: string; value: number; icon: React.ReactNode; color: string; bg: string; href?: string; }) {
   const inner = (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <p className={`text-[10px] font-extrabold uppercase tracking-wider ${color} truncate`}>
+      <div className="flex items-start justify-between gap-1 mb-2 sm:mb-4">
+        <p className={`text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider ${color} leading-tight line-clamp-2`}>
           {label}
         </p>
-        <div className={`p-2 rounded-lg bg-app ${color} shrink-0`}>{icon}</div>
+        <div className={`p-1.5 sm:p-2 rounded-lg bg-app ${color} shrink-0`}>{icon}</div>
       </div>
-      <p className="text-4xl font-black text-primary">{value}</p>
+      <p className="text-xl sm:text-3xl md:text-4xl font-black text-primary mt-auto">{value}</p>
     </>
   );
 
-  const baseClass = `rounded-2xl border bg-panel p-5 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg ${bg}`;
+  const baseClass = `flex flex-col rounded-2xl border bg-panel p-3 sm:p-4 md:p-5 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg ${bg}`;
 
   if (href) {
     return (
-      <Link
-        href={href}
-        className={`${baseClass} block focus:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
-      >
+      <Link href={href} className={`${baseClass} focus:outline-none focus-visible:ring-2 focus-visible:ring-accent`}>
         {inner}
       </Link>
     );
@@ -794,22 +610,11 @@ function StatCard({
   return <div className={baseClass}>{inner}</div>;
 }
 
-function QuickAction({
-  href,
-  icon,
-  label,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  label: string;
-}) {
+function QuickAction({ href, icon, label }: { href: string; icon: React.ReactNode; label: string; }) {
   return (
-    <Link
-      href={href}
-      className="group flex flex-col items-center justify-center gap-2 rounded-xl border border-border bg-app p-4 text-secondary hover:border-accent/50 hover:text-accent transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-    >
+    <Link href={href} className="group flex flex-col items-center justify-center gap-1.5 rounded-xl border border-border bg-app p-2 sm:p-4 text-secondary hover:border-accent/50 hover:text-accent transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
       <span className="transition-transform group-hover:scale-110">{icon}</span>
-      <span className="text-xs font-bold text-center">{label}</span>
+      <span className="text-[10px] sm:text-xs font-bold text-center leading-tight">{label}</span>
     </Link>
   );
 }

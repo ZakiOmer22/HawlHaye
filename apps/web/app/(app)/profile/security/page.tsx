@@ -119,6 +119,7 @@ export default function SecuritySettingsPage() {
     try {
       const optionsRes = await api<{ data: Record<string, unknown> }>(
         "/auth/passkeys/register/options",
+        { cache: "no-store" },          // ← ADD THIS LINE
       );
 
       const regResponse = await startRegistration({

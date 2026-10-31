@@ -41,6 +41,8 @@ import { NotificationBell } from "./NotificationBell";
 import { OfflineBanner } from "./OfflineBanner";
 import { ServiceWorkerRegistrar } from "./ServiceWorkerRegistrar";
 import { TwoFABanner } from "./TwoFABanner";
+import { SpotlightTour } from "./SpotlightTour";
+import { TourConfetti } from "./TourConfetti";
 
 type NavItem = {
   href: string;
@@ -158,6 +160,17 @@ function ShellInner({ user, children }: { user: User; children: React.ReactNode 
   }
 
   useEffect(() => {
+    const openMenu = () => setUserMenuOpen(true);
+    const closeMenu = () => setUserMenuOpen(false);
+    window.addEventListener("tour-open-profile", openMenu);
+    window.addEventListener("tour-close-profile", closeMenu);
+    return () => {
+      window.removeEventListener("tour-open-profile", openMenu);
+      window.removeEventListener("tour-close-profile", closeMenu);
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     api<{ data: { impersonatedBy?: { id: string; fullName: string } | null } }>("/auth/me")
       .then((res) => {
@@ -227,7 +240,10 @@ function ShellInner({ user, children }: { user: User; children: React.ReactNode 
     <div className="flex min-h-screen flex-col bg-app text-primary">
       <ServiceWorkerRegistrar />
       <OfflineBanner />
-      <TwoFABanner />
+
+      <div data-tour="2fa-banner">
+        <TwoFABanner />
+      </div>
 
       {impersonation && (
         <div className="sticky top-0 z-[110] flex items-center justify-between gap-3 bg-amber-500 px-4 py-2 text-[#0F172A] shadow-lg">
@@ -265,7 +281,11 @@ function ShellInner({ user, children }: { user: User; children: React.ReactNode 
             <Logo size="md" href="/board" />
           </div>
 
-          <nav className="hidden md:flex items-center gap-1" aria-label="Main navigation">
+          <nav
+            data-tour="navbar"
+            className="hidden md:flex items-center gap-1"
+            aria-label="Main navigation"
+          >
             {allowedNav.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
@@ -273,6 +293,7 @@ function ShellInner({ user, children }: { user: User; children: React.ReactNode 
                 <Link
                   key={item.href}
                   href={item.href}
+                  data-tour={`nav-${item.href.slice(1).replace(/\//g, "-")}`}
                   aria-current={active ? "page" : undefined}
                   className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#e8bc69] ${
                     active
@@ -302,6 +323,7 @@ function ShellInner({ user, children }: { user: User; children: React.ReactNode 
 
             <div className="relative" ref={userMenuRef}>
               <button
+                data-tour="profile-menu"
                 type="button"
                 onClick={() => setUserMenuOpen((v) => !v)}
                 aria-haspopup="menu"
@@ -638,6 +660,8 @@ function ShellInner({ user, children }: { user: User; children: React.ReactNode 
       </div>
 
       <CommandPalette open={searchOpen} setOpen={setSearchOpen} />
+      <SpotlightTour />
+      <TourConfetti />
     </div>
   );
 }

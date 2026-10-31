@@ -987,4 +987,30 @@ authRouter.post(
   }),
 );
 
+// ── Onboarding status ──────────────────────────────────────
+authRouter.get(
+  "/onboarding",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },              // ← was req.user.id
+      select: { onboardingCompletedAt: true },
+    });
+    res.json({ data: { completed: user?.onboardingCompletedAt !== null } });
+  }),
+);
+
+// ── Mark onboarding as completed ───────────────────────────
+authRouter.post(
+  "/onboarding/complete",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    await prisma.user.update({
+      where: { id: req.user!.id },              // ← was req.user.id
+      data: { onboardingCompletedAt: new Date() },
+    });
+    res.status(204).end();
+  }),
+);
+
 authRouter.use("/passkeys", passkeysRouter);

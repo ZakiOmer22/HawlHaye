@@ -7,10 +7,12 @@ const nextConfig = {
   poweredByHeader: false,
   transpilePackages: ["@hawl/shared"],
   async rewrites() {
+    // Use local API in dev, production API on Vercel
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
     return [
       {
         source: "/api/v1/:path*",
-        destination: "https://hawlhaye.onrender.com/api/v1/:path*",
+        destination: `${apiUrl}/api/v1/:path*`,
       },
     ];
   },
