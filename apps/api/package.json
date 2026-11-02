@@ -34,7 +34,7 @@
     "pino": "^10.2.0",
     "pino-http": "^11.0.0",
     "qrcode": "^1.5.4",
-    "strtok3": "^7.1.1",
+    "strtok3": "^10.6.3",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "token-types": "^5.0.1",
