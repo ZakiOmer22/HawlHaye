@@ -21,7 +21,7 @@ export function NotificationBell() {
   }, []);
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="relative" ref={menuRef} data-force-dark>
       <button
         onClick={() => {
           setIsOpen(!isOpen);

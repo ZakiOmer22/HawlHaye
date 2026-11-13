@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import { ZodError } from "zod";
+import multer from "multer";
 import { logger } from "../lib/logger";
 
 export class HttpError extends Error {
@@ -14,8 +15,34 @@ export class HttpError extends Error {
   }
 }
 
+/**
+ * Thrown from multer fileFilter callbacks to reject an upload with a
+ * client-safe message. Kept separate from HttpError because multer has its
+ * own error path, but the resulting HTTP response is the same shape.
+ */
+export class UploadRejectedError extends Error {
+  constructor(
+    message: string,
+    public code = "upload_rejected",
+  ) {
+    super(message);
+    this.name = "UploadRejectedError";
+  }
+}
+
 export function notFound(_req: Request, res: Response): void {
   res.status(404).json({ error: "not_found", message: "Route not found" });
+}
+
+// body-parser attaches `type` and `status` to its errors; there is no exported
+// class to `instanceof` against.
+function isBodyParserError(err: unknown): err is { type: string; status: number; message: string } {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    typeof (err as { type?: unknown }).type === "string" &&
+    typeof (err as { status?: unknown }).status === "number"
+  );
 }
 
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {
@@ -28,13 +55,62 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     return;
   }
 
-  // 2. Expected application errors — safe to surface code + message
+  // 2. Upload rejection (from multer fileFilter) — client-caused
+  if (err instanceof UploadRejectedError) {
+    res.status(400).json({ error: err.code, message: err.message });
+    return;
+  }
+
+  // 3. Multer errors — size and file-count rejections
+  if (err instanceof multer.MulterError) {
+    switch (err.code) {
+      case "LIMIT_FILE_SIZE":
+        res.status(413).json({
+          error: "file_too_large",
+          message: "Uploaded file exceeds the allowed size.",
+        });
+        return;
+      case "LIMIT_FILE_COUNT":
+      case "LIMIT_UNEXPECTED_FILE":
+        res.status(400).json({
+          error: "invalid_file_upload",
+          message: "Unexpected or too many files.",
+        });
+        return;
+      default:
+        res.status(400).json({ error: "upload_failed", message: err.message });
+        return;
+    }
+  }
+
+  // 4. body-parser: JSON body exceeded express.json limit
+  if (isBodyParserError(err) && err.type === "entity.too.large") {
+    res.status(413).json({
+      error: "payload_too_large",
+      message: "Request body exceeds the allowed limit.",
+    });
+    return;
+  }
+
+  // 5. body-parser: malformed JSON
+  if (isBodyParserError(err) && err.type === "entity.parse.failed") {
+    res.status(400).json({ error: "invalid_json", message: "Malformed JSON body." });
+    return;
+  }
+
+  // 6. CORS allowlist rejection (thrown from the cors origin callback)
+  if (err instanceof Error && err.message === "Not allowed by CORS") {
+    res.status(403).json({ error: "cors_rejected", message: "Origin not allowed." });
+    return;
+  }
+
+  // 7. Expected application errors — safe to surface code + message
   if (err instanceof HttpError) {
     res.status(err.status).json({ error: err.code, message: err.message });
     return;
   }
 
-  // 3. Unexpected — correlate the client-visible reference with the server log
+  // 8. Unexpected — correlate the client-visible reference with the server log
   const correlationId = randomUUID();
   const userId = (req as Request & { user?: { id: string } }).user?.id;
 

@@ -1,11 +1,11 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import compression from "compression";
 import swaggerUi from "swagger-ui-express";
+import path from "node:path"; // 🚀 Import path
 import { type Env } from "./config/env";
 import { logger } from "./lib/logger";
 import { registerModules } from "./modules";
@@ -13,21 +13,22 @@ import { errorHandler, notFound } from "./middleware/errors";
 import { csrfProtection } from "./middleware/csrf";
 import { cacheControl } from "./middleware/cache";
 import { swaggerSpec } from "./lib/swagger";
+import { globalLimiter } from "./middleware/rateLimiter";
+import { checkMaintenance } from "./middleware/maintenance";
+import { check2FA } from "./middleware/require2FA";
 
 const responseBodyMap = new WeakMap<object, unknown>();
+const JSON_BODY_LIMIT = "1mb";
 
 export function createApp(env: Env): Express {
   const app = express();
   app.set("trust proxy", env.TRUST_PROXY);
   app.set("etag", "strong");
 
-  // CORS allowlist — falls back to WEB_ORIGIN when ALLOWED_ORIGINS is unset.
   const allowedOrigins = env.ALLOWED_ORIGINS.length > 0 ? env.ALLOWED_ORIGINS : [env.WEB_ORIGIN];
 
   app.use(
     helmet({
-      // JSON API — nothing should ever render from these responses.
-      // The real CSP belongs on the Next.js web app, not here.
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'none'"],
@@ -36,11 +37,7 @@ export function createApp(env: Env): Express {
           formAction: ["'none'"],
         },
       },
-      hsts: {
-        maxAge: 63_072_000,
-        includeSubDomains: true,
-        preload: true,
-      },
+      hsts: { maxAge: 63_072_000, includeSubDomains: true, preload: true },
       referrerPolicy: { policy: "no-referrer" },
       crossOriginEmbedderPolicy: false,
     }),
@@ -49,7 +46,7 @@ export function createApp(env: Env): Express {
   app.use(
     cors({
       origin: (origin, cb) => {
-        if (!origin) return cb(null, true); // same-origin / server-to-server
+        if (!origin) return cb(null, true);
         if (allowedOrigins.includes(origin)) return cb(null, true);
         cb(new Error("Not allowed by CORS"));
       },
@@ -59,19 +56,13 @@ export function createApp(env: Env): Express {
   );
 
   app.use(compression());
+  app.use(globalLimiter);
 
-  app.use(
-    rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 500,
-      standardHeaders: true,
-      legacyHeaders: false,
-      skip: () => env.NODE_ENV === "test",
-      message: { error: "too_many_requests", message: "Too many requests." },
-    }),
-  );
+  // 🚀 TELL EXPRESS TO SERVE UPLOADED FILES FROM THE PUBLIC DIRECTORY
+  app.use(express.static(path.join(process.cwd(), "public")));
 
-  app.use(express.json({ limit: "100kb" }));
+  app.use(express.json({ limit: JSON_BODY_LIMIT }));
+  app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
   app.use(cookieParser(env.SESSION_SECRET));
   app.use(csrfProtection);
 
@@ -109,7 +100,6 @@ export function createApp(env: Env): Express {
     }),
   );
 
-  // Swagger UI is dev-only — endpoint enumeration is an info-disclosure finding in prod
   if (env.NODE_ENV !== "production") {
     app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
   }
@@ -119,6 +109,10 @@ export function createApp(env: Env): Express {
   });
 
   app.use("/api/v1", cacheControl);
+
+  // 🚀 APPLY SETTINGS ENFORCEMENT GLOBALLY
+  app.use(checkMaintenance);
+  app.use(check2FA);
 
   registerModules(app);
 

@@ -138,6 +138,25 @@ export async function transitionTask(
       );
     }
 
+    // ── ADD THIS BLOCK: Catch database constraint before it hits Prisma ──
+    if (input.to === "ASSIGNED") {
+      if (!task.ownerId) {
+        throw new HttpError(
+          400,
+          "You must assign an owner before moving this task to ASSIGNED.",
+          "missing_owner",
+        );
+      }
+      if (!task.dueDate) {
+        throw new HttpError(
+          400,
+          "You must set a due date before moving this task to ASSIGNED.",
+          "missing_due_date",
+        );
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     const data: Prisma.TaskUpdateInput = { status: input.to };
     if (input.to === "BLOCKED") data.blockedReason = input.reason ?? null;
     if (task.status === "BLOCKED" && input.to !== "BLOCKED") data.blockedReason = null;

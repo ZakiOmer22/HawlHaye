@@ -1,5 +1,3 @@
-// IMPORTANT: BASE is empty so requests go through the Vercel proxy,
-// making the cookie first-party and bypassing browser 3rd-party cookie blockers.
 const BASE = "";
 
 export class ApiError extends Error {
@@ -19,7 +17,6 @@ interface ErrorResponse {
   code?: string;
 }
 
-/** Read the double-submit CSRF token from the cookie set by /auth/login. */
 function readCsrfCookie(): string | null {
   if (typeof document === "undefined") return null;
   const match = document.cookie.match(/(?:^|;\s*)csrf=([^;]+)/);
@@ -33,11 +30,13 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const isMutation = MUTATING.has(method);
   const csrfToken = isMutation ? readCsrfCookie() : null;
 
+  const setJsonContentType = typeof init.body === "string";
+
   const res = await fetch(`${BASE}/api/v1${path}`, {
     ...init,
     credentials: "include",
     headers: {
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...(setJsonContentType ? { "Content-Type": "application/json" } : {}),
       ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
       ...((init.headers as Record<string, string> | undefined) ?? {}),
     },
@@ -46,14 +45,29 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
     let code: string | undefined;
+
     try {
       const body = (await res.json()) as ErrorResponse;
-      if (body.error && typeof body.error === "object") {
+
+      // 1. Handle Rate Limiting Explicitly
+      if (res.status === 429) {
+        message = body.message || "Too many requests. Please wait a few minutes and try again.";
+        code = "too_many_requests";
+      }
+      // 2. Handle other standard errors
+      else if (body.error && typeof body.error === "object") {
         message = body.error.message ?? body.error.code ?? message;
         code = body.error.code;
       } else if (typeof body.error === "string") {
-        message = body.error;
-        code = body.code;
+        message = body.message || body.error;
+        code = body.error;
+
+        // 🚀 CATCH MAINTENANCE MODE HERE
+        if (res.status === 503 && code === "maintenance_mode") {
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new Event("maintenance_mode"));
+          }
+        }
       } else if (body.message) {
         message = body.message;
         code = body.code;
@@ -62,6 +76,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       /* non-JSON error body */
     }
 
+    // 3. Handle Redirects
     if (
       typeof window !== "undefined" &&
       code === "password_change_required" &&

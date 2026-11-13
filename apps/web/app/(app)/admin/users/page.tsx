@@ -25,6 +25,9 @@ import {
   Save,
   UserCog,
   ShieldAlert,
+  Mail,
+  Phone,
+  User as UserIcon,
 } from "lucide-react";
 
 const ROLES: Role[] = [
@@ -75,6 +78,16 @@ type RawUser = {
   failedLoginCount?: number;
 };
 
+type RawInvite = {
+  id: string;
+  email: string;
+  fullName?: string | null;
+  role: Role;
+  officeId: string | null;
+  expiresAt: string;
+  invitedBy: { fullName: string };
+};
+
 type UserStatus = "active" | "locked" | "inactive";
 type FilterStatus = "all" | UserStatus;
 
@@ -94,25 +107,28 @@ const actionBtnClass =
 export default function AdminUsersPage() {
   const { t } = usePreferences();
   const [users, setUsers] = useState<RawUser[] | null>(null);
+  const [invites, setInvites] = useState<RawInvite[] | null>(null);
   const [offices, setOffices] = useState<Office[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
 
-  // Current viewer — extended with twoFAStatus for 2FA-gating
+  const [activeTab, setActiveTab] = useState<"users" | "invites">("users");
+
   const [currentUser, setCurrentUser] = useState<{
     id: string;
     role: Role;
     twoFAStatus?: { enforcement: string };
   } | null>(null);
 
-  // Filters & Search
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
 
   // Modals & Forms
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [role, setRole] = useState<Role>("LAB_TECHNICIAN");
   const [officeId, setOfficeId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -135,7 +151,7 @@ export default function AdminUsersPage() {
   const [editRole, setEditRole] = useState<Role>("LAB_TECHNICIAN");
   const [editOfficeId, setEditOfficeId] = useState("");
 
-  // Deactivate modal (with reason)
+  // Deactivate modal
   const [deactivateUser, setDeactivateUser] = useState<RawUser | null>(null);
   const [deactivateReason, setDeactivateReason] = useState("");
   const [deactivateNote, setDeactivateNote] = useState("");
@@ -143,6 +159,9 @@ export default function AdminUsersPage() {
   // Delete modal
   const [deleteUser, setDeleteUser] = useState<RawUser | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
+
+  // NEW: Revoke Invite modal state
+  const [revokeTarget, setRevokeTarget] = useState<RawInvite | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -152,16 +171,22 @@ export default function AdminUsersPage() {
       ]);
       setUsers(userResponse.data);
       setOffices(officeResponse.data);
+
+      if (currentUser?.role === "ADMINISTRATOR" || currentUser?.role === "DEAN") {
+        const inviteRes = await api<{ data: RawInvite[] }>("/users/invites").catch(() => ({
+          data: [],
+        }));
+        setInvites(inviteRes.data);
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t("error.generic"));
     }
-  }, [t]);
+  }, [t, currentUser]);
 
   useEffect(() => {
     void reload();
   }, [reload]);
 
-  // Load the current viewer + 2FA status
   useEffect(() => {
     api<{ data: { id: string; role: Role; twoFAStatus?: { enforcement: string } } }>("/auth/me")
       .then((res) =>
@@ -174,7 +199,6 @@ export default function AdminUsersPage() {
       .catch(() => setCurrentUser(null));
   }, []);
 
-  // 2FA gating helpers
   const is2FABlocked = currentUser?.twoFAStatus?.enforcement === "blocked";
   const twoFATip = is2FABlocked
     ? "Enable 2FA in Profile → Security to perform this action"
@@ -186,7 +210,6 @@ export default function AdminUsersPage() {
     return m;
   }, [offices]);
 
-  // Stats
   const stats = useMemo(() => {
     if (!users) return { total: 0, active: 0, locked: 0, admins: 0 };
     return {
@@ -197,7 +220,6 @@ export default function AdminUsersPage() {
     };
   }, [users]);
 
-  // Filtered Users
   const filteredUsers = useMemo(() => {
     if (!users) return [];
     return users.filter((u) => {
@@ -214,7 +236,6 @@ export default function AdminUsersPage() {
     });
   }, [users, searchQuery, filterStatus]);
 
-  // Helpers
   const formatLastLogin = useCallback(
     (iso: string | null | undefined) => {
       if (!iso) return t("admin.users.time.never");
@@ -232,7 +253,6 @@ export default function AdminUsersPage() {
     [t],
   );
 
-  // Handlers
   async function invite(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -241,7 +261,13 @@ export default function AdminUsersPage() {
     try {
       const r = await api<{ data: { token?: string } }>("/users/invite", {
         method: "POST",
-        body: JSON.stringify({ email, role, officeId: officeId || undefined }),
+        body: JSON.stringify({
+          email,
+          role,
+          officeId: officeId || undefined,
+          fullName: fullName.trim() || undefined,
+          phone: phone.trim() || undefined,
+        }),
       });
 
       const msg = r.data.token
@@ -251,6 +277,8 @@ export default function AdminUsersPage() {
       setInviteResult(msg);
       setAnnouncement(`Invitation sent to ${email}.`);
       setEmail("");
+      setFullName("");
+      setPhone("");
       setOfficeId("");
       setIsInviteOpen(false);
       await reload();
@@ -258,6 +286,25 @@ export default function AdminUsersPage() {
       setError(e instanceof ApiError ? e.message : "Invite failed");
     } finally {
       setBusy(false);
+    }
+  }
+
+  // NEW: Optimistic UI Revoke
+  async function confirmRevoke() {
+    if (!revokeTarget) return;
+    setActionBusy(revokeTarget.id);
+    setError(null);
+    try {
+      await api(`/users/invites/${revokeTarget.id}`, { method: "DELETE" });
+      setAnnouncement(`Invitation for ${revokeTarget.email} revoked.`);
+
+      // Instantly remove from state without waiting for reload
+      setInvites((prev) => (prev ? prev.filter((inv) => inv.id !== revokeTarget.id) : prev));
+      setRevokeTarget(null);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Failed to revoke invite");
+    } finally {
+      setActionBusy(null);
     }
   }
 
@@ -470,7 +517,6 @@ export default function AdminUsersPage() {
         {announcement}
       </div>
 
-      {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <p className="text-xs font-extrabold uppercase tracking-[0.22em] text-accent">
@@ -489,7 +535,6 @@ export default function AdminUsersPage() {
         </button>
       </header>
 
-      {/* 2FA blocked inline notice (in addition to the global banner) */}
       {is2FABlocked && (
         <div
           role="alert"
@@ -507,7 +552,6 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      {/* Alerts */}
       {inviteResult && (
         <div
           role="status"
@@ -527,7 +571,6 @@ export default function AdminUsersPage() {
         </div>
       )}
 
-      {/* Stats Overview */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="rounded-2xl border border-border bg-panel p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
@@ -567,195 +610,293 @@ export default function AdminUsersPage() {
         </div>
       </section>
 
-      {/* Main Content */}
       <div className="rounded-2xl border border-border bg-panel overflow-hidden shadow-sm flex flex-col">
-        {/* Toolbar */}
         <div className="p-4 border-b border-border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-          <div
-            role="tablist"
-            className="flex items-center gap-1 bg-app p-1 rounded-xl border border-border w-fit"
-          >
-            {(["all", "active", "locked", "inactive"] as FilterStatus[]).map((f) => (
-              <button
-                key={f}
-                role="tab"
-                aria-selected={filterStatus === f}
-                onClick={() => setFilterStatus(f)}
-                className={`rounded-lg px-4 py-1.5 text-sm font-bold capitalize transition ${
-                  filterStatus === f
-                    ? "bg-panel text-primary shadow-sm border border-border/50"
-                    : "text-muted hover:text-primary border border-transparent"
-                }`}
-              >
-                {f === "all"
-                  ? t("admin.users.filter.all")
-                  : f === "active"
-                    ? t("admin.users.filter.active")
-                    : f === "locked"
-                      ? t("admin.users.filter.locked")
-                      : t("admin.users.filter.inactive")}
-              </button>
-            ))}
+          <div className="flex items-center gap-1 bg-app p-1 rounded-xl border border-border w-fit">
+            <button
+              onClick={() => setActiveTab("users")}
+              className={`rounded-lg px-4 py-1.5 text-sm font-bold transition ${
+                activeTab === "users"
+                  ? "bg-panel text-primary shadow-sm border border-border/50"
+                  : "text-muted hover:text-primary border border-transparent"
+              }`}
+            >
+              Active Users
+            </button>
+            <button
+              onClick={() => setActiveTab("invites")}
+              className={`rounded-lg px-4 py-1.5 text-sm font-bold transition ${
+                activeTab === "invites"
+                  ? "bg-panel text-primary shadow-sm border border-border/50"
+                  : "text-muted hover:text-primary border border-transparent"
+              }`}
+            >
+              Pending Invites {invites && invites.length > 0 && `(${invites.length})`}
+            </button>
           </div>
 
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
-            <input
-              type="search"
-              placeholder={t("admin.users.searchPlaceholder")}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-xl border border-border bg-app py-2 ps-10 pe-4 text-sm text-primary placeholder-muted outline-none transition focus:border-accent focus:ring-1 focus:ring-accent/40"
-            />
-          </div>
+          {activeTab === "users" && (
+            <div className="flex items-center gap-4">
+              <div
+                role="tablist"
+                className="hidden sm:flex items-center gap-1 bg-app p-1 rounded-xl border border-border"
+              >
+                {(["all", "active", "locked", "inactive"] as FilterStatus[]).map((f) => (
+                  <button
+                    key={f}
+                    role="tab"
+                    aria-selected={filterStatus === f}
+                    onClick={() => setFilterStatus(f)}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition ${
+                      filterStatus === f
+                        ? "bg-panel text-primary shadow-sm border border-border/50"
+                        : "text-muted hover:text-primary border border-transparent"
+                    }`}
+                  >
+                    {f === "all"
+                      ? t("admin.users.filter.all")
+                      : f === "active"
+                        ? t("admin.users.filter.active")
+                        : f === "locked"
+                          ? t("admin.users.filter.locked")
+                          : t("admin.users.filter.inactive")}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+                <input
+                  type="search"
+                  placeholder={t("admin.users.searchPlaceholder")}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full rounded-xl border border-border bg-app py-2 ps-10 pe-4 text-sm text-primary placeholder-muted outline-none transition focus:border-accent focus:ring-1 focus:ring-accent/40"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Table */}
         <div className="overflow-x-auto flex-1">
-          <table className="w-full text-start text-sm">
-            <thead className="bg-app text-xs font-bold uppercase tracking-wider text-muted">
-              <tr>
-                <th scope="col" className="px-6 py-4 text-start">
-                  {t("admin.users.table.user")}
-                </th>
-                <th scope="col" className="px-6 py-4 text-start">
-                  {t("admin.users.table.role")}
-                </th>
-                <th scope="col" className="px-6 py-4 text-start">
-                  {t("admin.users.table.office")}
-                </th>
-                <th scope="col" className="px-6 py-4 text-start">
-                  {t("admin.users.table.lastLogin")}
-                </th>
-                <th scope="col" className="px-6 py-4 text-start">
-                  {t("admin.users.table.status")}
-                </th>
-                <th scope="col" className="px-6 py-4 text-end">
-                  {t("admin.users.table.actions")}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filteredUsers.length === 0 ? (
+          {activeTab === "users" ? (
+            <table className="w-full text-start text-sm">
+              <thead className="bg-app text-xs font-bold uppercase tracking-wider text-muted">
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-muted">
-                    {t("admin.users.table.empty")}
-                  </td>
+                  <th scope="col" className="px-6 py-4 text-start">
+                    {t("admin.users.table.user")}
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-start">
+                    {t("admin.users.table.role")}
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-start">
+                    {t("admin.users.table.office")}
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-start">
+                    {t("admin.users.table.lastLogin")}
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-start">
+                    {t("admin.users.table.status")}
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-end">
+                    {t("admin.users.table.actions")}
+                  </th>
                 </tr>
-              ) : (
-                filteredUsers.map((u) => {
-                  const status = statusOf(u);
-                  const busyRow = actionBusy === u.id;
-                  return (
-                    <tr key={u.id} className="hover:bg-panel-hover transition-colors group">
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-muted">
+                      {t("admin.users.table.empty")}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((u) => {
+                    const status = statusOf(u);
+                    const busyRow = actionBusy === u.id;
+                    return (
+                      <tr key={u.id} className="hover:bg-panel-hover transition-colors group">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-app border border-border text-sm font-black text-secondary">
+                              {u.fullName.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-primary group-hover:text-accent transition-colors truncate">
+                                {u.fullName}
+                              </p>
+                              <p className="text-xs text-muted truncate">{u.email}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${ROLE_COLORS[u.role]}`}
+                          >
+                            <Shield size={12} />
+                            {t(ROLE_LABEL[u.role])}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-secondary text-xs">
+                          {u.officeId ? (officeMap.get(u.officeId) ?? "—") : "—"}
+                        </td>
+                        <td className="px-6 py-4 text-secondary text-xs">
+                          {formatLastLogin(u.lastLoginAt)}
+                        </td>
+                        <td className="px-6 py-4">
+                          {status === "active" && (
+                            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              {t("admin.users.stats.active")}
+                            </span>
+                          )}
+                          {status === "locked" && u.lockedUntil && (
+                            <span
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-500/10 px-2.5 py-1 rounded-md border border-red-500/20"
+                              title={`Locked for ${minutesLeft(u.lockedUntil)} more minutes`}
+                            >
+                              <Lock size={11} />
+                              {t("admin.users.status.lockedTime", {
+                                mins: minutesLeft(u.lockedUntil),
+                              })}
+                            </span>
+                          )}
+                          {status === "inactive" && (
+                            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-slate-500/10 px-2.5 py-1 rounded-md border border-slate-500/20">
+                              <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
+                              {t("admin.users.status.deactivated")}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-end">
+                          <div className="inline-flex items-center gap-1">
+                            {status === "locked" && (
+                              <button
+                                type="button"
+                                onClick={() => void unlock(u)}
+                                disabled={busyRow}
+                                title="Unlock account"
+                                aria-label={`Unlock ${u.fullName}`}
+                                className="rounded-lg p-2 text-amber-500 hover:bg-amber-500/10 transition disabled:opacity-50"
+                              >
+                                <Lock size={14} />
+                              </button>
+                            )}
+                            {status === "active" && (
+                              <button
+                                type="button"
+                                onClick={() => void resetLinkFor(u)}
+                                disabled={busyRow || is2FABlocked}
+                                title={twoFATip || "Generate reset link"}
+                                aria-label={`Generate reset link for ${u.fullName}`}
+                                className="rounded-lg p-2 text-muted hover:bg-accent/10 hover:text-accent transition disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                <KeyRound size={14} />
+                              </button>
+                            )}
+                            {status === "inactive" && (
+                              <button
+                                type="button"
+                                onClick={() => void resendInvite(u)}
+                                disabled={busyRow}
+                                title="Resend invitation"
+                                aria-label={`Resend invitation to ${u.fullName}`}
+                                className="rounded-lg p-2 text-blue-500 hover:bg-blue-500/10 transition disabled:opacity-50"
+                              >
+                                <Send size={14} />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setActionsUser(u)}
+                              disabled={busyRow}
+                              title="More actions"
+                              aria-label={`More actions for ${u.fullName}`}
+                              className="rounded-lg p-2 text-muted hover:bg-panel-hover hover:text-primary transition disabled:opacity-50"
+                            >
+                              <MoreHorizontal size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          ) : (
+            <table className="w-full text-start text-sm">
+              <thead className="bg-app text-xs font-bold uppercase tracking-wider text-muted">
+                <tr>
+                  <th scope="col" className="px-6 py-4 text-start">
+                    Name / Email
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-start">
+                    Role
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-start">
+                    Office
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-start">
+                    Invited By
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-start">
+                    Expires
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-end">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {!invites || invites.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-muted">
+                      No pending invites.
+                    </td>
+                  </tr>
+                ) : (
+                  invites.map((inv) => (
+                    <tr key={inv.id} className="hover:bg-panel-hover transition-colors">
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-app border border-border text-sm font-black text-secondary">
-                            {u.fullName.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-bold text-primary group-hover:text-accent transition-colors truncate">
-                              {u.fullName}
-                            </p>
-                            <p className="text-xs text-muted truncate">{u.email}</p>
-                          </div>
-                        </div>
+                        <p className="font-bold text-primary">
+                          {inv.fullName || inv.email.split("@")[0]}
+                        </p>
+                        <p className="text-xs text-muted truncate">{inv.email}</p>
                       </td>
                       <td className="px-6 py-4">
                         <span
-                          className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${ROLE_COLORS[u.role]}`}
+                          className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${ROLE_COLORS[inv.role]}`}
                         >
                           <Shield size={12} />
-                          {t(ROLE_LABEL[u.role])}
+                          {t(ROLE_LABEL[inv.role])}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-secondary text-xs">
-                        {u.officeId ? (officeMap.get(u.officeId) ?? "—") : "—"}
+                        {inv.officeId ? (officeMap.get(inv.officeId) ?? "—") : "—"}
                       </td>
                       <td className="px-6 py-4 text-secondary text-xs">
-                        {formatLastLogin(u.lastLoginAt)}
+                        {inv.invitedBy?.fullName ?? "Unknown"}
                       </td>
-                      <td className="px-6 py-4">
-                        {status === "active" && (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            {t("admin.users.stats.active")}
-                          </span>
-                        )}
-                        {status === "locked" && u.lockedUntil && (
-                          <span
-                            className="inline-flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-500/10 px-2.5 py-1 rounded-md border border-red-500/20"
-                            title={`Locked for ${minutesLeft(u.lockedUntil)} more minutes`}
-                          >
-                            <Lock size={11} />
-                            {t("admin.users.status.lockedTime", {
-                              mins: minutesLeft(u.lockedUntil),
-                            })}
-                          </span>
-                        )}
-                        {status === "inactive" && (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-slate-500/10 px-2.5 py-1 rounded-md border border-slate-500/20">
-                            <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
-                            {t("admin.users.status.deactivated")}
-                          </span>
-                        )}
+                      <td className="px-6 py-4 text-secondary text-xs">
+                        {new Date(inv.expiresAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 text-end">
-                        <div className="inline-flex items-center gap-1">
-                          {status === "locked" && (
-                            <button
-                              type="button"
-                              onClick={() => void unlock(u)}
-                              disabled={busyRow}
-                              title="Unlock account"
-                              aria-label={`Unlock ${u.fullName}`}
-                              className="rounded-lg p-2 text-amber-500 hover:bg-amber-500/10 transition disabled:opacity-50"
-                            >
-                              <Lock size={14} />
-                            </button>
-                          )}
-                          {status === "active" && (
-                            <button
-                              type="button"
-                              onClick={() => void resetLinkFor(u)}
-                              disabled={busyRow || is2FABlocked}
-                              title={twoFATip || "Generate reset link"}
-                              aria-label={`Generate reset link for ${u.fullName}`}
-                              className="rounded-lg p-2 text-muted hover:bg-accent/10 hover:text-accent transition disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                              <KeyRound size={14} />
-                            </button>
-                          )}
-                          {status === "inactive" && (
-                            <button
-                              type="button"
-                              onClick={() => void resendInvite(u)}
-                              disabled={busyRow}
-                              title="Resend invitation"
-                              aria-label={`Resend invitation to ${u.fullName}`}
-                              className="rounded-lg p-2 text-blue-500 hover:bg-blue-500/10 transition disabled:opacity-50"
-                            >
-                              <Send size={14} />
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setActionsUser(u)}
-                            disabled={busyRow}
-                            title="More actions"
-                            aria-label={`More actions for ${u.fullName}`}
-                            className="rounded-lg p-2 text-muted hover:bg-panel-hover hover:text-primary transition disabled:opacity-50"
-                          >
-                            <MoreHorizontal size={14} />
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => setRevokeTarget(inv)}
+                          disabled={actionBusy === inv.id || is2FABlocked}
+                          title="Revoke Invite"
+                          className="rounded-lg p-2 text-red-500 hover:bg-red-500/10 transition disabled:opacity-50"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -772,17 +913,61 @@ export default function AdminUsersPage() {
               htmlFor="invite-email"
               className="text-[10px] font-bold uppercase tracking-wider text-muted"
             >
-              {t("admin.users.invite.email")}
+              {t("admin.users.invite.email")} *
             </label>
-            <input
-              id="invite-email"
-              required
-              type="email"
-              placeholder="name@cecit.edu.so"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-border bg-app px-4 py-2.5 text-sm text-primary placeholder-muted outline-none transition focus:border-accent focus:ring-1 focus:ring-accent/40"
-            />
+            <div className="relative">
+              <Mail className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+              <input
+                id="invite-email"
+                required
+                type="email"
+                placeholder="name@cecit.edu.so"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-xl border border-border bg-app py-2.5 ps-10 pe-4 text-sm text-primary placeholder-muted outline-none transition focus:border-accent focus:ring-1 focus:ring-accent/40"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label
+                htmlFor="invite-name"
+                className="text-[10px] font-bold uppercase tracking-wider text-muted"
+              >
+                Full Name
+              </label>
+              <div className="relative">
+                <UserIcon className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+                <input
+                  id="invite-name"
+                  type="text"
+                  placeholder="John Doe"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full rounded-xl border border-border bg-app py-2.5 ps-10 pe-4 text-sm text-primary placeholder-muted outline-none transition focus:border-accent focus:ring-1 focus:ring-accent/40"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label
+                htmlFor="invite-phone"
+                className="text-[10px] font-bold uppercase tracking-wider text-muted"
+              >
+                Phone Number
+              </label>
+              <div className="relative">
+                <Phone className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
+                <input
+                  id="invite-phone"
+                  type="tel"
+                  placeholder="+252 63 000 0000"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full rounded-xl border border-border bg-app py-2.5 ps-10 pe-4 text-sm text-primary placeholder-muted outline-none transition focus:border-accent focus:ring-1 focus:ring-accent/40"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -846,6 +1031,39 @@ export default function AdminUsersPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* NEW: Revoke Invitation Modal */}
+      <Modal
+        isOpen={!!revokeTarget}
+        onClose={() => setRevokeTarget(null)}
+        title="Revoke Invitation"
+        description="Are you sure you want to revoke this invitation?"
+      >
+        {revokeTarget && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-500">
+              <p className="font-bold mb-1">This will prevent them from joining:</p>
+              <p className="text-xs break-all">{revokeTarget.email}</p>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                type="button"
+                onClick={() => setRevokeTarget(null)}
+                className="rounded-lg px-4 py-2 text-sm font-bold text-muted hover:text-primary"
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                onClick={() => void confirmRevoke()}
+                disabled={actionBusy === revokeTarget.id}
+                className="inline-flex items-center gap-2 rounded-xl bg-red-500 px-6 py-2.5 text-sm font-bold text-white transition hover:bg-red-600 disabled:opacity-50"
+              >
+                <Trash2 size={14} /> Revoke
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Reset Link Modal */}
@@ -953,7 +1171,6 @@ export default function AdminUsersPage() {
               </button>
             )}
 
-            {/* Impersonate — gated by 2FA + role conditions */}
             {currentUser &&
               actionsUser.active &&
               actionsUser.id !== currentUser.id &&

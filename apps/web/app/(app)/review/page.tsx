@@ -6,8 +6,19 @@ import { api, ApiError } from "@/lib/api";
 import type { Task } from "@/lib/types";
 import { formatDate } from "@/lib/format";
 import { usePreferences } from "@/lib/preferences";
+import { useBoardRealtime } from "@/lib/realtime";
 import { Modal } from "@/components/ui/Modal";
-import { CheckCircle2, RotateCcw, AlertCircle, Clock, Loader2 } from "lucide-react";
+import {
+  CheckCircle2,
+  RotateCcw,
+  AlertCircle,
+  Clock,
+  Loader2,
+  User,
+  Calendar,
+  ArrowRight,
+  ShieldAlert,
+} from "lucide-react";
 
 export default function ReviewQueuePage() {
   const { t } = usePreferences();
@@ -22,8 +33,7 @@ export default function ReviewQueuePage() {
 
   const loadTasks = useCallback(async () => {
     try {
-      // Fetch tasks that are currently in the REVIEW status
-      const res = await api<{ data: Task[] }>("/tasks?status=REVIEW&take=100");
+      const res = await api<{ data: Task[] }>(`/tasks?status=REVIEW&take=100&_t=${Date.now()}`);
       // Sort by updatedAt so the oldest waiting tasks are at the top
       const sorted = [...res.data].sort(
         (a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime(),
@@ -36,6 +46,21 @@ export default function ReviewQueuePage() {
 
   useEffect(() => {
     void loadTasks();
+  }, [loadTasks]);
+
+  // 🚀 REAL-TIME UPDATE LISTENER
+  useBoardRealtime(() => {
+    void loadTasks();
+  });
+
+  // 🚀 SILENT POLLING FALLBACK (Every 15 seconds if tab is active)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void loadTasks();
+      }
+    }, 15000);
+    return () => clearInterval(interval);
   }, [loadTasks]);
 
   async function executeAction(task: Task, to: "COMPLETED" | "IN_PROGRESS", reason?: string) {
@@ -63,7 +88,6 @@ export default function ReviewQueuePage() {
     }
   }
 
-  // Calculate how many days a task has been waiting in review
   const getWaitingTimeInfo = (dateStr: string) => {
     const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
 
@@ -72,7 +96,6 @@ export default function ReviewQueuePage() {
     else if (days === 1) label = t("review.wait.oneDay");
     else label = t("review.wait.days", { days });
 
-    // Color coding based on wait time
     let colorClass = "text-emerald-400 bg-emerald-400/10 border-emerald-400/20"; // < 1 day
     if (days >= 5)
       colorClass = "text-red-400 bg-red-400/10 border-red-400/20"; // 5+ days
@@ -126,8 +149,8 @@ export default function ReviewQueuePage() {
       {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.22em] text-[#e8bc69]">
-            {t("review.title")}
+          <p className="text-xs font-extrabold uppercase tracking-[0.22em] text-[#e8bc69] flex items-center gap-2">
+            <ShieldAlert size={14} /> {t("review.title")}
           </p>
           <h1 className="mt-1 text-3xl font-black text-white">{t("review.heading")}</h1>
           <p className="mt-2 text-sm text-[#94A3B8]">{t("review.subtitle")}</p>
@@ -170,18 +193,27 @@ export default function ReviewQueuePage() {
             return (
               <div
                 key={task.id}
-                className={`flex flex-col md:flex-row md:items-center justify-between gap-6 rounded-2xl border bg-[#1E293B] p-5 md:p-6 shadow-sm transition-all ${
+                className={`group flex flex-col lg:flex-row lg:items-center justify-between gap-6 rounded-2xl border bg-[#1E293B] p-5 md:p-6 shadow-sm transition-all ${
                   busy
                     ? "opacity-60 border-[#334155]"
-                    : "border-[#334155] hover:border-[#e8bc69]/40"
+                    : "border-[#334155] hover:border-[#e8bc69]/40 hover:shadow-md hover:shadow-[#e8bc69]/5"
                 }`}
               >
                 {/* Task Info */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-3 mb-2">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
                     <span className="text-[11px] font-mono font-bold tracking-wider text-[#64748B] bg-[#0F172A] px-2 py-0.5 rounded border border-[#334155]">
                       {task.code}
                     </span>
+                    {task.category && (
+                      <span className="flex items-center gap-1.5 text-[10px] font-bold text-[#94A3B8] bg-[#0F172A] px-2 py-0.5 rounded border border-[#334155]">
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: task.category.color || "#94A3B8" }}
+                        />
+                        {task.category.name}
+                      </span>
+                    )}
                     <span
                       className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border ${waitInfo.colorClass}`}
                     >
@@ -189,52 +221,38 @@ export default function ReviewQueuePage() {
                     </span>
                   </div>
 
-                  <Link href={`/tasks/${task.id}`} className="block group w-fit">
-                    <h3 className="text-lg font-bold text-white group-hover:text-[#e8bc69] transition-colors truncate">
+                  <Link href={`/tasks/${task.id}`} className="block group/link w-fit">
+                    <h3 className="text-lg font-bold text-white group-hover/link:text-[#e8bc69] transition-colors truncate flex items-center gap-2">
                       {task.title}
+                      <ArrowRight
+                        size={16}
+                        className="opacity-0 -translate-x-2 group-hover/link:opacity-100 group-hover/link:translate-x-0 transition-all text-[#e8bc69]"
+                      />
                     </h3>
                   </Link>
 
                   <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold uppercase tracking-wider text-[10px] text-[#94A3B8]">
-                        {t("review.table.owner")}:
-                      </span>
-                      <span className="font-medium text-white bg-[#0F172A] px-2 py-1 rounded-md border border-[#334155]">
+                    <div className="flex items-center gap-2 text-[#94A3B8]">
+                      <User size={14} className="text-[#64748B]" />
+                      <span className="font-bold text-white">
                         {task.owner?.fullName ?? t("review.table.unknown")}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold uppercase tracking-wider text-[10px] text-[#94A3B8]">
-                        {t("review.table.due")}:
-                      </span>
+                    <div className="flex items-center gap-2 text-[#94A3B8]">
+                      <Calendar size={14} className="text-[#64748B]" />
                       <span className={`font-bold ${isOverdue ? "text-red-400" : "text-white"}`}>
                         {task.dueDate ? formatDate(task.dueDate) : t("review.table.none")}
                       </span>
                     </div>
-                    {task.category && (
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold uppercase tracking-wider text-[10px] text-[#94A3B8]">
-                          {t("review.table.category")}:
-                        </span>
-                        <span className="flex items-center gap-1.5 font-bold text-white">
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: task.category.color || "#94A3B8" }}
-                          />
-                          {task.category.name}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex flex-row md:flex-col gap-2 shrink-0 md:w-36 pt-2 md:pt-0 border-t md:border-t-0 border-[#334155]">
+                <div className="flex flex-col sm:flex-row lg:flex-col gap-2 shrink-0 lg:w-36 pt-4 lg:pt-0 border-t lg:border-t-0 lg:border-l border-[#334155] lg:pl-6">
                   <button
                     onClick={() => executeAction(task, "COMPLETED")}
                     disabled={!!actionBusy}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#e8bc69] px-4 py-2.5 text-sm font-bold text-[#0F172A] transition hover:bg-[#f1cf8b] disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#e8bc69] focus:ring-offset-2 focus:ring-offset-[#1E293B]"
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#e8bc69] px-4 py-2.5 text-sm font-bold text-[#0F172A] transition hover:bg-[#f1cf8b] disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#e8bc69] focus:ring-offset-2 focus:ring-offset-[#1E293B] shadow-sm"
                   >
                     {busy ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -280,7 +298,9 @@ export default function ReviewQueuePage() {
               className="w-full rounded-xl border border-[#334155] bg-[#0F172A] p-4 text-sm text-white placeholder-[#64748B] outline-none transition focus:border-red-400 focus:ring-1 focus:ring-red-400/40"
             />
             <p
-              className={`text-[10px] font-bold text-right ${reasonInput.trim().length < 5 ? "text-amber-400" : "text-emerald-400"}`}
+              className={`text-[10px] font-bold text-right ${
+                reasonInput.trim().length < 5 ? "text-amber-400" : "text-emerald-400"
+              }`}
             >
               {reasonInput.trim().length < 5
                 ? t("review.return.minChars", { count: 5 - reasonInput.trim().length })

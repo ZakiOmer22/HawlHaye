@@ -1,6 +1,8 @@
 import multer from "multer";
 import { fileTypeFromBuffer } from "file-type";
 import { HttpError } from "./errors";
+import { prisma } from "../lib/prisma";
+import { getSystemSettings } from "./settings";
 
 // Store in memory first so we can inspect the binary signature before saving to disk/S3
 const storage = multer.memoryStorage();
@@ -8,7 +10,7 @@ const storage = multer.memoryStorage();
 export const uploadAttachment = multer({
   storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max file size
+    fileSize: 20 * 1024 * 1024, // 20MB max file size
     files: 1, // Only 1 file per request
   },
 });
@@ -37,4 +39,24 @@ export async function validateFileMagicBytes(fileBuffer: Buffer) {
   }
 
   return type;
+}
+
+// Check global storage limit before saving
+export async function assertStorageAvailable(additionalBytes: number) {
+  const settings = await getSystemSettings();
+  const limitMb = settings?.storageLimitMb ?? 10240; // Default 10GB
+  const limitBytes = BigInt(limitMb) * 1024n * 1024n;
+
+  // NOTE: Change 'attachment' to your actual Prisma model name for files
+  // (e.g., 'file', 'taskAttachment', etc.) and 'sizeBytes' to your actual size field.
+  const agg = await prisma.attachment.aggregate({ _sum: { sizeBytes: true } });
+  const usedBytes = BigInt(agg._sum.sizeBytes ?? 0);
+
+  if (usedBytes + BigInt(additionalBytes) > limitBytes) {
+    throw new HttpError(
+      413,
+      "Global storage limit exceeded. Contact an administrator.",
+      "storage_limit_exceeded",
+    );
+  }
 }

@@ -2,7 +2,16 @@
 
 import { useEffect, useState } from "react";
 
-const COLORS = ["#e8bc69", "#f1cf8b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#f97316", "#22d3ee"];
+const COLORS = [
+  "#e8bc69",
+  "#f1cf8b",
+  "#10b981",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+  "#f97316",
+  "#22d3ee",
+];
 const EMOJIS = ["🎉", "🎊", "✨", "🌟", "⭐", "💫", "🏆", "🥳"];
 
 type Particle = {
@@ -30,7 +39,7 @@ export function TourConfetti() {
           id: i,
           x: Math.random() * 100,
           color: COLORS[Math.floor(Math.random() * COLORS.length)],
-          delay: Math.random() * 2.5,        // staggered — continuous wave
+          delay: Math.random() * 2.5, // staggered — continuous wave
           duration: 2.5 + Math.random() * 3.5, // 2.5s – 6s fall time
           size: isEmoji ? 22 + Math.random() * 18 : 10 + Math.random() * 16,
           rotate: Math.random() * 360,

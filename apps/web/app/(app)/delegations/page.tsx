@@ -5,7 +5,8 @@ import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { usePreferences } from "@/lib/preferences";
-import { CheckCircle2, XCircle, AlertCircle, Inbox } from "lucide-react";
+import { useBoardRealtime } from "@/lib/realtime";
+import { CheckCircle2, XCircle, AlertCircle, Inbox, Loader2 } from "lucide-react";
 
 type PendingDelegation = {
   id: string;
@@ -41,6 +42,10 @@ export default function DelegationsPage() {
   useEffect(() => {
     void loadDelegations();
   }, [loadDelegations]);
+
+  useBoardRealtime(() => {
+    void loadDelegations();
+  });
 
   async function respond(delegation: PendingDelegation, action: "ACCEPTED" | "DECLINED") {
     setActionBusy(delegation.id);
@@ -194,14 +199,20 @@ export default function DelegationsPage() {
                     disabled={busy}
                     className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#e8bc69] px-4 py-2.5 text-sm font-bold text-[#0F172A] transition hover:bg-[#f1cf8b] disabled:opacity-50"
                   >
-                    <CheckCircle2 size={16} /> {t("delegations.accept")}
+                    {busy ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <CheckCircle2 size={16} />
+                    )}{" "}
+                    {t("delegations.accept")}
                   </button>
                   <button
                     onClick={() => void respond(d, "DECLINED")}
                     disabled={busy}
                     className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm font-bold text-red-400 transition hover:bg-red-500/20 disabled:opacity-50"
                   >
-                    <XCircle size={16} /> {t("delegations.decline")}
+                    {busy ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}{" "}
+                    {t("delegations.decline")}
                   </button>
                 </div>
               </div>

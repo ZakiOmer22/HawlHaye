@@ -10,6 +10,10 @@ import { wellKnownRouter } from "./well-known/routes";
 import { searchRouter } from "./search/routes";
 import { notificationsRouter } from "./notifications/routes";
 import { helpRouter } from "./help/routes";
+import { contactRouter } from "./contact/routes";
+import { ticketsRouter } from "./tickets/routes";
+import { systemRouter } from "./admin/system.routes";
+import { settingsRouter } from "./admin/settings.routes";
 
 export function registerModules(app: Express): void {
   app.use("/.well-known", wellKnownRouter);
@@ -25,4 +29,8 @@ export function registerModules(app: Express): void {
   app.use("/api/v1/search", searchRouter);
   app.use("/api/v1/notifications", notificationsRouter);
   app.use("/api/v1/help", helpRouter);
+  app.use("/api/v1/contact", contactRouter);
+  app.use("/api/v1/tickets", ticketsRouter);
+  app.use("/api/v1/admin/system", systemRouter);
+  app.use("/api/v1/admin/settings", settingsRouter);
 }

@@ -18,6 +18,14 @@ const schema = z.object({
   PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().positive().default(60),
   LEADERSHIP_2FA_GRACE_DAYS: z.coerce.number().int().min(0).default(7),
 
+  // ── SMTP ────────────────────────────────────────────────────
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().optional(),
+  SMTP_SECURE: z.string().optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
+
   // ── New: Network / headers ──────────────────────────────────
   ALLOWED_ORIGINS: z
     .string()

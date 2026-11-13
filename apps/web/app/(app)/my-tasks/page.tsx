@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
-import type { Task, TaskStatus } from "@/lib/types";
+import type { Task, TaskStatus, User } from "@/lib/types";
 import { formatDate, isOverdue } from "@/lib/format";
 import { usePreferences, type TranslationKey } from "@/lib/preferences";
 import {
@@ -55,6 +55,7 @@ function isSameDay(d1: Date, d2: Date) {
 export default function MyTasksPage() {
   const { t } = usePreferences();
   const [tasks, setTasks] = useState<Task[] | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -65,8 +66,12 @@ export default function MyTasksPage() {
     async (opts?: { silent?: boolean }) => {
       if (!opts?.silent) setRefreshing(true);
       try {
-        const r = await api<{ data: Task[] }>("/tasks?mine=true&take=200");
-        setTasks(r.data);
+        const [tasksRes, meRes] = await Promise.all([
+          api<{ data: Task[] }>("/tasks?mine=true&take=200"),
+          api<{ data: User }>("/auth/me"),
+        ]);
+        setTasks(tasksRes.data);
+        setUser(meRes.data);
         setError(null);
       } catch (e) {
         if (e instanceof ApiError) {
@@ -161,6 +166,7 @@ export default function MyTasksPage() {
   }, [filteredTasks]);
 
   const totalVisible = filteredTasks.length;
+  const canCreateTask = user?.role !== "LAB_TECHNICIAN";
 
   if (error && !tasks) {
     return (
@@ -220,12 +226,16 @@ export default function MyTasksPage() {
           >
             <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
           </button>
-          <Link
-            href="/board"
-            className="flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-accent-text hover:bg-accent-hover shadow-sm transition"
-          >
-            <Plus size={16} /> {t("dashboard.newTask")}
-          </Link>
+
+          {/* RBAC: Hide Create Task for Technicians */}
+          {canCreateTask && (
+            <Link
+              href="/board"
+              className="flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-accent-text hover:bg-accent-hover shadow-sm transition"
+            >
+              <Plus size={16} /> {t("dashboard.newTask")}
+            </Link>
+          )}
         </div>
       </header>
 
@@ -298,7 +308,7 @@ export default function MyTasksPage() {
           <p className="text-sm text-muted max-w-sm mx-auto mb-6">
             {searchInput ? t("myTasks.empty.search.desc") : t("myTasks.empty.all.desc")}
           </p>
-          {!searchInput && (
+          {!searchInput && canCreateTask && (
             <Link
               href="/board"
               className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-accent-text hover:bg-accent-hover transition"
@@ -318,7 +328,6 @@ export default function MyTasksPage() {
                 <h3 className="text-xs font-extrabold uppercase tracking-wider text-secondary flex items-center gap-2">
                   {groupKey === "overdue" && <AlertCircle size={14} className="text-red-500" />}
                   {groupKey === "today" && <Calendar size={14} className="text-accent" />}
-                  {/* Uses the newly added translation keys */}
                   {t(`myTasks.group.${groupKey}` as TranslationKey)}
                   <span className="bg-app border border-border text-primary px-2 py-0.5 rounded-md text-[10px]">
                     {groupTasks.length}

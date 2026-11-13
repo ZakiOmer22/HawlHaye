@@ -18,5 +18,5 @@ helpRouter.get(
     });
 
     res.json({ data: categories });
-  })
+  }),
 );

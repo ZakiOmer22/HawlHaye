@@ -1,28 +1,87 @@
 import type { RequestHandler } from "express";
 import { prisma } from "../lib/prisma";
-import { asyncHandler } from "./async";
 import { HttpError } from "./errors";
-import { compute2FAStatus } from "../lib/twofa";
+import { getSystemSettings } from "./settings";
+import { hashToken } from "../lib/tokens";
+import { SESSION_COOKIE } from "../lib/cookies";
 
-/**
- * Rejects the request with `403 2fa_required` when the caller is a leadership
- * user who has exceeded their grace period without enabling 2FA.
- * Non-leadership users and users with 2FA enabled pass through silently.
- */
-export const require2FAForHighRisk: RequestHandler = asyncHandler(async (req, _res, next) => {
-  const user = await prisma.user.findUnique({
-    where: { id: req.user!.id },
-    select: { role: true, twoFactorEnabled: true, twoFAExemptUntil: true },
-  });
-  if (!user) throw new HttpError(401, "User not found", "unauthenticated");
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-  const status = compute2FAStatus(user);
-  if (status.enforcement === "blocked") {
-    throw new HttpError(
-      403,
-      "Two-factor authentication is required to perform this action. Enable it in Profile → Security.",
-      "2fa_required",
-    );
+export const check2FA: RequestHandler = async (req, _res, next) => {
+  // 1. Skip read-only requests entirely! Let them view the board.
+  if (!MUTATING_METHODS.has(req.method)) {
+    return next();
   }
-  next();
-});
+
+  // 2. Skip auth routes (so they can actually set up 2FA)
+  if (req.path.startsWith("/api/v1/auth") || req.path === "/health") {
+    return next();
+  }
+
+  try {
+    const settings = await getSystemSettings();
+    if (!settings?.enforce2FA) return next();
+
+    const token = req.cookies?.[SESSION_COOKIE];
+    if (!token) return next();
+
+    const session = await prisma.session.findUnique({
+      where: { tokenHash: hashToken(token) },
+      include: {
+        user: {
+          select: {
+            role: true,
+            twoFactorEnabled: true,
+            twoFAExemptUntil: true,
+          },
+        },
+      },
+    });
+
+    const u = session?.user;
+    if (!u) return next();
+
+    // Admins bypass, users with 2FA bypass, users in grace period bypass
+    if (u.role === "ADMINISTRATOR") return next();
+    if (u.twoFactorEnabled) return next();
+    if (u.twoFAExemptUntil && u.twoFAExemptUntil > new Date()) return next();
+
+    // Block the mutation
+    return next(
+      new HttpError(
+        403,
+        "Two-factor authentication is required to perform this action.",
+        "2fa_required",
+      ),
+    );
+  } catch {
+    next();
+  }
+};
+
+export const require2FAForHighRisk: RequestHandler = async (req, _res, next) => {
+  if (!req.user) {
+    return next(new HttpError(401, "Authentication required", "unauthenticated"));
+  }
+
+  try {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { twoFactorEnabled: true },
+    });
+
+    if (!dbUser?.twoFactorEnabled) {
+      return next(
+        new HttpError(
+          403,
+          "Two-factor authentication must be enabled to perform this action.",
+          "2fa_required",
+        ),
+      );
+    }
+
+    next();
+  } catch (err) {
+    next(err);
+  }
+};

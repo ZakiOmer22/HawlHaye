@@ -50,7 +50,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
             setNotifications((prev) => [data, ...prev].slice(0, 20));
             setUnreadCount((prev) => prev + 1);
           } catch {
-            /* ignore malformed payloads */
+            /* ignore */
           }
         });
 
@@ -67,7 +67,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
           }
         };
       } catch {
-        /* EventSource constructor failed — give up silently */
+        /* ignore */
       }
     }
 
@@ -102,10 +102,6 @@ export function useRealtime(): RealtimeContextValue {
   return ctx;
 }
 
-/**
- * Subscribe to board-change events. Fires `callback` (debounced) whenever the
- * board version increments. Use this in any page that displays live task data.
- */
 export function useBoardRealtime(callback: () => void, debounceMs = 500) {
   const { boardVersion } = useRealtime();
   const callbackRef = useRef(callback);

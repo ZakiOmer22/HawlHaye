@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import { MaintenanceProvider } from "@/components/layout/MaintenanceProvider";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -9,7 +10,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://hawlhay.cecit.edu.so"),
+  metadataBase: new URL("https://uoh.ealif.com"),
   title: {
     default: "HAWLHAYE - Institutional Task Management",
     template: "%s | HAWLHAYE",
@@ -24,7 +25,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "HAWLHAYE - Institutional Task Management",
     description: "One clear direction for institutional work.",
-    url: "https://hawlhay.cecit.edu.so",
+    url: "https://uoh.ealif.com",
     siteName: "HAWLHAYE",
     images: [{ url: "/og-image.png", width: 1200, height: 630 }],
     locale: "en_US",
@@ -47,7 +48,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
-      <body className={`${jakarta.variable} font-sans antialiased min-h-screen`}>{children}</body>
+      <body className={`${jakarta.variable} font-sans antialiased min-h-screen`}>
+        {/* 🚀 USE THE PROVIDER HERE */}
+        <MaintenanceProvider>{children}</MaintenanceProvider>
+      </body>
     </html>
   );
 }

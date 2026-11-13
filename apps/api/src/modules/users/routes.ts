@@ -12,6 +12,8 @@ import { requireRole } from "../../middleware/rbac";
 import { require2FAForHighRisk } from "../../middleware/require2FA";
 import { HttpError } from "../../middleware/errors";
 import { env } from "../../config/env";
+import { sendInviteEmail } from "../../lib/mailer";
+import { logger } from "../../lib/logger";
 
 export const usersRouter = Router();
 
@@ -59,7 +61,8 @@ usersRouter.post(
         data: {
           email: invite.email,
           passwordHash,
-          fullName: invite.email.split("@")[0],
+          // Use the invite's fullName if it was provided, otherwise fallback to email prefix
+          fullName: invite.fullName || invite.email.split("@")[0],
           role: invite.role,
           officeId: invite.officeId,
           active: true,
@@ -91,6 +94,59 @@ usersRouter.post(
 );
 
 usersRouter.use(requireAuth);
+
+// ────────────────────────────────────────────────────────────
+// INVITES — must come BEFORE /:id to prevent Express from
+// matching "/invites" as a user ID.
+// ────────────────────────────────────────────────────────────
+
+usersRouter.get(
+  "/invites",
+  requireRole("ADMINISTRATOR", "DEAN"),
+  asyncHandler(async (_req, res) => {
+    const data = await prisma.invite.findMany({
+      where: { acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: "desc" },
+      include: { invitedBy: { select: { fullName: true } } },
+    });
+    res.json({ data });
+  }),
+);
+
+usersRouter.delete(
+  "/invites/:id",
+  requireRole("ADMINISTRATOR", "DEAN"),
+  asyncHandler(async (req, res) => {
+    const invite = await prisma.invite.findUnique({ where: { id: req.params.id } });
+    if (!invite) throw new HttpError(404, "Invite not found", "not_found");
+
+    await prisma.invite.update({
+      where: { id: invite.id },
+      data: { revokedAt: new Date() },
+    });
+
+    await writeAudit({
+      actorId: req.user!.id,
+      action: "user.invite_revoked",
+      entityType: "Invite",
+      entityId: invite.id,
+      req,
+    });
+
+    logSecurityEvent("INVITE_REVOKED", {
+      userId: req.user!.id,
+      targetId: invite.id,
+      email: invite.email,
+      ip: req.ip,
+    });
+
+    res.status(204).end();
+  }),
+);
+
+// ────────────────────────────────────────────────────────────
+// USERS list / by id
+// ────────────────────────────────────────────────────────────
 
 usersRouter.get(
   "/",
@@ -142,6 +198,8 @@ const inviteSchema = z
     email: z.string().email().max(254),
     role: z.enum(ROLES),
     officeId: z.string().min(1).optional(),
+    fullName: z.string().trim().min(2).max(120).optional(),
+    phone: z.string().max(20).optional(),
   })
   .strict();
 
@@ -175,6 +233,8 @@ usersRouter.post(
           expiresAt,
           acceptedAt: null,
           revokedAt: null,
+          fullName: input.fullName, // Save fullName
+          phone: input.phone, // Save phone
         },
       });
     } else {
@@ -186,6 +246,8 @@ usersRouter.post(
           invitedById: req.user!.id,
           tokenHash: hashToken(token),
           expiresAt,
+          fullName: input.fullName, // Save fullName
+          phone: input.phone, // Save phone
         },
       });
     }
@@ -206,6 +268,38 @@ usersRouter.post(
       role: input.role,
       ip: req.ip,
     });
+
+    // Fetch inviter name and office name for the email
+    const inviter = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { fullName: true },
+    });
+    const inviterName = inviter?.fullName || "CECIT Administration";
+
+    let officeName: string | null = null;
+    if (input.officeId) {
+      const office = await prisma.office.findUnique({
+        where: { id: input.officeId },
+        select: { name: true },
+      });
+      officeName = office?.name || null;
+    }
+
+    try {
+      await sendInviteEmail(
+        input.email,
+        token,
+        input.role,
+        inviterName,
+        officeName,
+        input.fullName || null,
+      );
+    } catch (err) {
+      logger.error(
+        { err, email: input.email },
+        "Failed to send invite email, but invite was created in DB.",
+      );
+    }
 
     res.status(201).json({
       data: {
@@ -336,50 +430,6 @@ usersRouter.post(
     });
 
     res.json({ data: { id: updated.id, active: updated.active } });
-  }),
-);
-
-usersRouter.get(
-  "/invites",
-  requireRole("ADMINISTRATOR", "DEAN"),
-  asyncHandler(async (_req, res) => {
-    const data = await prisma.invite.findMany({
-      where: { acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
-      orderBy: { createdAt: "desc" },
-      include: { invitedBy: { select: { fullName: true } } },
-    });
-    res.json({ data });
-  }),
-);
-
-usersRouter.delete(
-  "/invites/:id",
-  requireRole("ADMINISTRATOR", "DEAN"),
-  asyncHandler(async (req, res) => {
-    const invite = await prisma.invite.findUnique({ where: { id: req.params.id } });
-    if (!invite) throw new HttpError(404, "Invite not found", "not_found");
-
-    await prisma.invite.update({
-      where: { id: invite.id },
-      data: { revokedAt: new Date() },
-    });
-
-    await writeAudit({
-      actorId: req.user!.id,
-      action: "user.invite_revoked",
-      entityType: "Invite",
-      entityId: invite.id,
-      req,
-    });
-
-    logSecurityEvent("INVITE_REVOKED", {
-      userId: req.user!.id,
-      targetId: invite.id,
-      email: invite.email,
-      ip: req.ip,
-    });
-
-    res.status(204).end();
   }),
 );
 

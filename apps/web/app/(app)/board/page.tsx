@@ -24,6 +24,7 @@ import { Column } from "@/components/layout/Column";
 import { TaskCard } from "@/components/layout/TaskCard";
 import { Modal } from "@/components/ui/Modal";
 import { CreateTaskModal } from "@/components/board/CreateTaskModal";
+import { AssignTaskModal } from "@/components/board/AssignTaskModal";
 import { usePreferences, type TranslationKey } from "@/lib/preferences";
 import { useBoardRealtime } from "@/lib/realtime";
 import {
@@ -40,6 +41,7 @@ import {
   UserCircle2,
   CalendarDays,
   Layers,
+  AlertTriangle,
 } from "lucide-react";
 
 const STATUSES: TaskStatus[] = [
@@ -64,12 +66,42 @@ const STATUS_STYLE: Record<
   TaskStatus,
   { accent: string; bg: string; text: string; border: string }
 > = {
-  UNASSIGNED: { accent: "bg-slate-400", bg: "bg-slate-400/10", text: "text-slate-500", border: "border-slate-400/20" },
-  ASSIGNED: { accent: "bg-blue-400", bg: "bg-blue-400/10", text: "text-blue-500", border: "border-blue-400/20" },
-  IN_PROGRESS: { accent: "bg-accent", bg: "bg-accent/10", text: "text-accent", border: "border-accent/20" },
-  BLOCKED: { accent: "bg-red-400", bg: "bg-red-500/10", text: "text-red-500", border: "border-red-500/20" },
-  REVIEW: { accent: "bg-violet-400", bg: "bg-violet-400/10", text: "text-violet-500", border: "border-violet-400/20" },
-  COMPLETED: { accent: "bg-emerald-400", bg: "bg-emerald-400/10", text: "text-emerald-500", border: "border-emerald-400/20" },
+  UNASSIGNED: {
+    accent: "bg-slate-400",
+    bg: "bg-slate-400/10",
+    text: "text-slate-500",
+    border: "border-slate-400/20",
+  },
+  ASSIGNED: {
+    accent: "bg-blue-400",
+    bg: "bg-blue-400/10",
+    text: "text-blue-500",
+    border: "border-blue-400/20",
+  },
+  IN_PROGRESS: {
+    accent: "bg-accent",
+    bg: "bg-accent/10",
+    text: "text-accent",
+    border: "border-accent/20",
+  },
+  BLOCKED: {
+    accent: "bg-red-400",
+    bg: "bg-red-500/10",
+    text: "text-red-500",
+    border: "border-red-500/20",
+  },
+  REVIEW: {
+    accent: "bg-violet-400",
+    bg: "bg-violet-400/10",
+    text: "text-violet-500",
+    border: "border-violet-400/20",
+  },
+  COMPLETED: {
+    accent: "bg-emerald-400",
+    bg: "bg-emerald-400/10",
+    text: "text-emerald-500",
+    border: "border-emerald-400/20",
+  },
 };
 
 type BoardColumnPayload = Task[] | { tasks: Task[]; total: number };
@@ -99,19 +131,25 @@ const DAY_KEYS: TranslationKey[] = [
 function isColumnPayload(value: unknown): value is { tasks: Task[]; total: number } {
   if (typeof value !== "object" || value === null) return false;
   if (!("tasks" in value)) return false;
-  const maybe = value as { tasks: unknown };
-  return Array.isArray(maybe.tasks);
+  return Array.isArray((value as { tasks: unknown }).tasks);
 }
 
-function normalizeBoard(raw: BoardRaw | undefined): {
-  tasks: Record<TaskStatus, Task[]>;
-  totals: Record<TaskStatus, number>;
-} {
+function normalizeBoard(raw: BoardRaw | undefined) {
   const tasks: Record<TaskStatus, Task[]> = {
-    UNASSIGNED: [], ASSIGNED: [], IN_PROGRESS: [], BLOCKED: [], REVIEW: [], COMPLETED: [],
+    UNASSIGNED: [],
+    ASSIGNED: [],
+    IN_PROGRESS: [],
+    BLOCKED: [],
+    REVIEW: [],
+    COMPLETED: [],
   };
   const totals: Record<TaskStatus, number> = {
-    UNASSIGNED: 0, ASSIGNED: 0, IN_PROGRESS: 0, BLOCKED: 0, REVIEW: 0, COMPLETED: 0,
+    UNASSIGNED: 0,
+    ASSIGNED: 0,
+    IN_PROGRESS: 0,
+    BLOCKED: 0,
+    REVIEW: 0,
+    COMPLETED: 0,
   };
   if (!raw) return { tasks, totals };
   for (const status of STATUSES) {
@@ -121,7 +159,7 @@ function normalizeBoard(raw: BoardRaw | undefined): {
       totals[status] = value.length;
     } else if (isColumnPayload(value)) {
       tasks[status] = value.tasks;
-      totals[status] = typeof value.total === "number" ? value.total : value.tasks.length;
+      totals[status] = value.total ?? value.tasks.length;
     }
   }
   return { tasks, totals };
@@ -129,7 +167,8 @@ function normalizeBoard(raw: BoardRaw | undefined): {
 
 const customCollisionDetection: CollisionDetection = (args) => {
   const pointerIntersections = pointerWithin(args);
-  const intersections = pointerIntersections.length > 0 ? pointerIntersections : rectIntersection(args);
+  const intersections =
+    pointerIntersections.length > 0 ? pointerIntersections : rectIntersection(args);
   const overId = intersections.length > 0 ? intersections[0].id : null;
   if (overId) return [{ id: overId }];
   return closestCenter(args);
@@ -137,10 +176,6 @@ const customCollisionDetection: CollisionDetection = (args) => {
 
 export default function BoardPage() {
   const { t } = usePreferences();
-
-  // ─────────────────────────────────────────────────────────────
-  // Detect mobile so drag-and-drop can be disabled
-  // ─────────────────────────────────────────────────────────────
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const mql = window.matchMedia("(max-width: 768px)");
@@ -149,11 +184,15 @@ export default function BoardPage() {
     setIsMobile(mql.matches);
     return () => mql.removeEventListener("change", onChange);
   }, []);
-  // ─────────────────────────────────────────────────────────────
 
   const [columns, setColumns] = useState<Record<TaskStatus, Task[]> | null>(null);
   const [totals, setTotals] = useState<Record<TaskStatus, number>>({
-    UNASSIGNED: 0, ASSIGNED: 0, IN_PROGRESS: 0, BLOCKED: 0, REVIEW: 0, COMPLETED: 0,
+    UNASSIGNED: 0,
+    ASSIGNED: 0,
+    IN_PROGRESS: 0,
+    BLOCKED: 0,
+    REVIEW: 0,
+    COMPLETED: 0,
   });
   const [user, setUser] = useState<User | null>(null);
   const [offices, setOffices] = useState<Office[]>([]);
@@ -186,6 +225,8 @@ export default function BoardPage() {
   const reasonRef = useRef<HTMLTextAreaElement>(null);
   const pendingMoveRef = useRef(pendingMove);
 
+  const [errorModal, setErrorModal] = useState<{ title: string; description: string } | null>(null);
+  const [assignModalTask, setAssignModalTask] = useState<Task | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   const boardRef = useRef<HTMLDivElement>(null);
@@ -195,26 +236,25 @@ export default function BoardPage() {
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: isMobile ? 100_000 : 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: isMobile ? 100_000 : 250, tolerance: 5 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: isMobile ? 100_000 : 250, tolerance: 5 },
+    }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   useEffect(() => {
     pendingMoveRef.current = pendingMove;
   }, [pendingMove]);
-
   useEffect(() => {
     const tmr = setTimeout(() => setFilterSearch(searchInput.trim()), 400);
     return () => clearTimeout(tmr);
   }, [searchInput]);
-
   useEffect(() => {
     if (pendingMove) {
       const tmr = setTimeout(() => reasonRef.current?.focus(), 50);
       return () => clearTimeout(tmr);
     }
   }, [pendingMove]);
-
   useEffect(() => {
     if (!showDateMenu) return;
     const onClick = (e: MouseEvent) => {
@@ -224,7 +264,6 @@ export default function BoardPage() {
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, [showDateMenu]);
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -248,7 +287,8 @@ export default function BoardPage() {
         if (filterDate === "OVERDUE") params.set("overdue", "true");
 
         const qs = params.toString();
-        const boardPath = qs ? `/tasks/board?${qs}` : "/tasks/board";
+        const cacheBuster = `_t=${Date.now()}`;
+        const boardPath = qs ? `/tasks/board?${qs}&${cacheBuster}` : `/tasks/board?${cacheBuster}`;
 
         const [u, b, o, c] = await Promise.all([
           api<{ data: User }>("/auth/me"),
@@ -264,7 +304,14 @@ export default function BoardPage() {
           const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
           const endOfWeek = startOfToday + 7 * 24 * 60 * 60 * 1000;
           const endOfTwoWeeks = startOfToday + 14 * 24 * 60 * 60 * 1000;
-          const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).getTime();
+          const endOfMonth = new Date(
+            now.getFullYear(),
+            now.getMonth() + 1,
+            0,
+            23,
+            59,
+            59,
+          ).getTime();
 
           const filterByDate = (task: Task) => {
             if (!task.dueDate) return false;
@@ -288,7 +335,6 @@ export default function BoardPage() {
         setOffices(o.data);
         setCategories(c.data);
         setError(null);
-
         const total = Object.values(nextTotals).reduce((a, b) => a + b, 0);
         setAnnouncement(t("board.announce.loaded", { count: total }));
       } catch (e) {
@@ -305,7 +351,6 @@ export default function BoardPage() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
-
   useBoardRealtime(() => {
     void loadData({ silent: true });
   });
@@ -315,7 +360,12 @@ export default function BoardPage() {
     if (!filterSearch) return columns;
     const q = filterSearch.toLowerCase();
     const result: Record<TaskStatus, Task[]> = {
-      UNASSIGNED: [], ASSIGNED: [], IN_PROGRESS: [], BLOCKED: [], REVIEW: [], COMPLETED: [],
+      UNASSIGNED: [],
+      ASSIGNED: [],
+      IN_PROGRESS: [],
+      BLOCKED: [],
+      REVIEW: [],
+      COMPLETED: [],
     };
     for (const status of STATUSES) {
       result[status] = columns[status].filter(
@@ -365,9 +415,22 @@ export default function BoardPage() {
         setReasonInput("");
         void loadData({ silent: true });
       } catch (err) {
-        const msg = err instanceof ApiError ? `Move failed: ${err.message}` : "Could not move task.";
-        setError(msg);
-        setAnnouncement(`Error: ${msg}`);
+        if (
+          err instanceof ApiError &&
+          (err.code === "missing_owner" || err.code === "missing_due_date")
+        ) {
+          const taskToMove =
+            columns?.[from]?.find((t) => t.id === taskId) ||
+            columns?.[to]?.find((t) => t.id === taskId);
+          if (taskToMove) {
+            setAssignModalTask(taskToMove);
+            void loadData({ silent: true });
+            return;
+          }
+        }
+
+        const msg = err instanceof ApiError ? err.message : "Could not move task.";
+        setErrorModal({ title: "Action Failed", description: msg });
         void loadData({ silent: true });
         setPendingMove(null);
         setReasonInput("");
@@ -375,12 +438,22 @@ export default function BoardPage() {
         setIsSubmitting(false);
       }
     },
-    [loadData, t],
+    [loadData, t, columns],
   );
 
   const handleMobileMove = useCallback(
     (taskId: string, from: TaskStatus, to: TaskStatus) => {
       if (from === to) return;
+
+      const taskToMove = columns?.[from]?.find((t) => t.id === taskId);
+      if (to === "ASSIGNED" && taskToMove) {
+        if (!taskToMove.ownerId || !taskToMove.dueDate) {
+          setAssignModalTask(taskToMove);
+          void loadData({ silent: true });
+          return;
+        }
+      }
+
       if (to === "BLOCKED" || (from === "REVIEW" && to === "IN_PROGRESS")) {
         setPendingMove({ taskId, from, to });
         return;
@@ -397,7 +470,7 @@ export default function BoardPage() {
       });
       void executeMove(taskId, from, to);
     },
-    [executeMove],
+    [executeMove, columns],
   );
 
   const handleColumnMove = useCallback(
@@ -449,15 +522,14 @@ export default function BoardPage() {
         const overItems = prev[overCol];
         const activeIndex = activeItems.findIndex((task) => task.id === active.id);
         const overIndex = overItems.findIndex((task) => task.id === over.id);
-
         let newIndex = overItems.length;
         if (!STATUSES.includes(over.id as TaskStatus)) {
           const isBelowOverItem =
-            over && active.rect.current.translated &&
+            over &&
+            active.rect.current.translated &&
             active.rect.current.translated.top > over.rect.top + over.rect.height;
           newIndex = overIndex >= 0 ? overIndex + (isBelowOverItem ? 1 : 0) : overItems.length;
         }
-
         return {
           ...prev,
           [activeCol]: activeItems.filter((task) => task.id !== active.id),
@@ -496,6 +568,16 @@ export default function BoardPage() {
     }
 
     if (from !== overCol) {
+      const taskObj = active.data.current?.task as Task | undefined;
+
+      if (overCol === "ASSIGNED" && taskObj) {
+        if (!taskObj.ownerId || !taskObj.dueDate) {
+          setAssignModalTask(taskObj);
+          void loadData({ silent: true });
+          return;
+        }
+      }
+
       if (overCol === "BLOCKED" || (from === "REVIEW" && overCol === "IN_PROGRESS")) {
         setPendingMove({ taskId: active.id as string, from, to: overCol });
         setAnnouncement(t("board.announce.reason"));
@@ -530,20 +612,21 @@ export default function BoardPage() {
 
   const anyFilterActive =
     filterMine || filterCategory !== null || filterDate !== "ALL" || filterSearch !== "";
-
   const currentYear = calendarDate.getFullYear();
   const currentMonth = calendarDate.getMonth();
   const currentMonthName = calendarDate.toLocaleString("default", { month: "long" });
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
-  const monthTasks = useMemo(() => {
-    return allTasks.filter((task) => {
-      if (!task.dueDate) return false;
-      const d = new Date(task.dueDate);
-      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
-    });
-  }, [allTasks, currentYear, currentMonth]);
+  const monthTasks = useMemo(
+    () =>
+      allTasks.filter((task) => {
+        if (!task.dueDate) return false;
+        const d = new Date(task.dueDate);
+        return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+      }),
+    [allTasks, currentYear, currentMonth],
+  );
 
   const handlePrevMonth = () => setCalendarDate(new Date(currentYear, currentMonth - 1, 1));
   const handleNextMonth = () => setCalendarDate(new Date(currentYear, currentMonth + 1, 1));
@@ -552,10 +635,16 @@ export default function BoardPage() {
     if (error) {
       return (
         <div className="-mx-4 -my-6 flex flex-1 min-h-0 w-full flex-col items-center justify-center bg-app p-4 md:p-6">
-          <div role="alert" className="max-w-md rounded-2xl border border-red-500/20 bg-red-500/10 p-6 text-center">
+          <div
+            role="alert"
+            className="max-w-md rounded-2xl border border-red-500/20 bg-red-500/10 p-6 text-center"
+          >
             <p className="text-lg font-black text-red-400 mb-2">{t("board.loadError")}</p>
             <p className="text-sm text-muted mb-6">{error}</p>
-            <button onClick={() => void loadData()} className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-accent-text hover:bg-accent-hover">
+            <button
+              onClick={() => void loadData()}
+              className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-accent-text hover:bg-accent-hover"
+            >
               <RefreshCw size={16} /> {t("board.retry")}
             </button>
           </div>
@@ -563,7 +652,10 @@ export default function BoardPage() {
       );
     }
     return (
-      <div className="-mx-4 -my-6 flex flex-1 min-h-0 w-full flex-col bg-app p-4 md:p-6" aria-busy="true">
+      <div
+        className="-mx-4 -my-6 flex flex-1 min-h-0 w-full flex-col bg-app p-4 md:p-6"
+        aria-busy="true"
+      >
         <div className="mb-6 shrink-0 flex justify-between">
           <div className="space-y-2">
             <div className="h-4 w-32 rounded bg-panel-hover animate-pulse" />
@@ -573,10 +665,16 @@ export default function BoardPage() {
         </div>
         <div className="flex gap-4 flex-1 overflow-hidden">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="w-[320px] shrink-0 rounded-2xl border border-border bg-panel/40 p-4">
+            <div
+              key={i}
+              className="w-[320px] shrink-0 rounded-2xl border border-border bg-panel/40 p-4"
+            >
               <div className="h-4 w-24 rounded bg-panel-hover mb-4 animate-pulse" />
               {[1, 2, 3].map((j) => (
-                <div key={j} className="mb-3 h-28 rounded-xl bg-app border border-border/60 animate-pulse" />
+                <div
+                  key={j}
+                  className="mb-3 h-28 rounded-xl bg-app border border-border/60 animate-pulse"
+                />
               ))}
             </div>
           ))}
@@ -585,97 +683,180 @@ export default function BoardPage() {
     );
   }
 
+  // RBAC Check for Creating Tasks
+  const canCreateTask = [
+    "ADMINISTRATOR",
+    "DEAN",
+    "DEPUTY",
+    "FACULTY_COORDINATOR",
+    "LABS_COORDINATOR",
+  ].includes(user.role);
+
   const totalCount = Object.values(displayTotals).reduce((a, b) => a + b, 0);
-  const taskCountLabel = totalCount === 1 ? t("board.taskCountOne", { count: totalCount }) : t("board.taskCount", { count: totalCount });
+  const taskCountLabel =
+    totalCount === 1
+      ? t("board.taskCountOne", { count: totalCount })
+      : t("board.taskCount", { count: totalCount });
 
   return (
     <div className="-mx-4 -my-6 flex flex-1 min-h-0 w-full flex-col bg-app text-primary overflow-hidden">
-      <div className="sr-only" aria-live="polite">{announcement}</div>
+      <div className="sr-only" aria-live="polite">
+        {announcement}
+      </div>
 
       <div className="border-b border-border bg-app/95 backdrop-blur-md px-4 pt-6 pb-4 md:px-6 shrink-0 z-20">
         <div className="flex flex-col gap-5 max-w-[1600px] mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-3">
-                <h1 data-tour="board-title" className="text-2xl font-black text-primary tracking-tight">{t("board.title")}</h1>
-                <span className="rounded-full bg-panel border border-border px-2.5 py-0.5 text-xs font-bold text-muted">{taskCountLabel}</span>
+                <h1
+                  data-tour="board-title"
+                  className="text-2xl font-black text-primary tracking-tight"
+                >
+                  {t("board.title")}
+                </h1>
+                <span className="rounded-full bg-panel border border-border px-2.5 py-0.5 text-xs font-bold text-muted">
+                  {taskCountLabel}
+                </span>
                 <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live
                 </div>
               </div>
               <p className="text-sm text-muted mt-1">{t("board.subtitle")}</p>
             </div>
-
             <div className="flex items-center gap-2">
-              <div data-tour="view-switcher" className="flex items-center rounded-xl border border-border bg-panel p-1 me-2">
-                <button onClick={() => setViewMode("board")} className={`flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition ${viewMode === "board" ? "bg-app text-primary shadow-sm" : "text-muted hover:text-primary"}`}>
+              <div
+                data-tour="view-switcher"
+                className="flex items-center rounded-xl border border-border bg-panel p-1 me-2"
+              >
+                <button
+                  onClick={() => setViewMode("board")}
+                  className={`flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition ${viewMode === "board" ? "bg-app text-primary shadow-sm" : "text-muted hover:text-primary"}`}
+                >
                   <LayoutGrid size={14} /> {t("board.view.board")}
                 </button>
-                <button onClick={() => setViewMode("list")} className={`flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition ${viewMode === "list" ? "bg-app text-primary shadow-sm" : "text-muted hover:text-primary"}`}>
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={`flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition ${viewMode === "list" ? "bg-app text-primary shadow-sm" : "text-muted hover:text-primary"}`}
+                >
                   <List size={14} /> {t("board.view.list")}
                 </button>
-                <button onClick={() => setViewMode("calendar")} className={`flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition ${viewMode === "calendar" ? "bg-app text-primary shadow-sm" : "text-muted hover:text-primary"}`}>
+                <button
+                  onClick={() => setViewMode("calendar")}
+                  className={`flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-bold transition ${viewMode === "calendar" ? "bg-app text-primary shadow-sm" : "text-muted hover:text-primary"}`}
+                >
                   <CalendarDays size={14} /> {t("board.view.calendar")}
                 </button>
               </div>
-
-              <button onClick={() => void loadData()} disabled={refreshing} className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-panel text-muted hover:text-primary transition disabled:opacity-50">
+              <button
+                onClick={() => void loadData()}
+                disabled={refreshing}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-panel text-muted hover:text-primary transition disabled:opacity-50"
+              >
                 <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
               </button>
-              <button data-tour="new-task" onClick={() => setIsCreateOpen(true)} className="flex h-10 items-center gap-2 rounded-xl bg-accent px-5 text-sm font-bold text-accent-text hover:bg-accent-hover shadow-sm transition">
-                <Plus size={16} /> {t("board.newTask")}
-              </button>
+
+              {/* RBAC: Hide Create Task for Technicians */}
+              {canCreateTask && (
+                <button
+                  data-tour="new-task"
+                  onClick={() => setIsCreateOpen(true)}
+                  className="flex h-10 items-center gap-2 rounded-xl bg-accent px-5 text-sm font-bold text-accent-text hover:bg-accent-hover shadow-sm transition"
+                >
+                  <Plus size={16} /> {t("board.newTask")}
+                </button>
+              )}
             </div>
           </div>
-
           <div data-tour="filters" className="flex flex-wrap items-center gap-2">
             <div data-tour="search" className="relative flex-1 min-w-[240px] max-w-md">
               <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted" />
-              <input ref={searchRef} type="search" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} placeholder={t("board.searchPlaceholder")} className="w-full h-10 rounded-xl border border-border bg-panel ps-9 pe-9 text-sm text-primary placeholder-muted outline-none transition focus:border-accent focus:ring-1 focus:ring-accent/40" />
+              <input
+                ref={searchRef}
+                type="search"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder={t("board.searchPlaceholder")}
+                className="w-full h-10 rounded-xl border border-border bg-panel ps-9 pe-9 text-sm text-primary placeholder-muted outline-none transition focus:border-accent focus:ring-1 focus:ring-accent/40"
+              />
               {searchInput && (
-                <button onClick={() => setSearchInput("")} className="absolute end-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted hover:text-primary">
+                <button
+                  onClick={() => setSearchInput("")}
+                  className="absolute end-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted hover:text-primary"
+                >
                   <X size={14} />
                 </button>
               )}
             </div>
-
             <div className="relative" ref={dateMenuRef}>
-              <button onClick={() => setShowDateMenu(!showDateMenu)} className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-bold transition ${filterDate !== "ALL" ? "border-accent bg-accent/10 text-accent" : "border-border bg-panel text-muted hover:text-primary"}`}>
+              <button
+                onClick={() => setShowDateMenu(!showDateMenu)}
+                className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-bold transition ${filterDate !== "ALL" ? "border-accent bg-accent/10 text-accent" : "border-border bg-panel text-muted hover:text-primary"}`}
+              >
                 <Calendar size={15} />
                 <span>{t(DATE_FILTER_KEY[filterDate])}</span>
-                <ChevronDown size={14} className={`transition-transform ${showDateMenu ? "rotate-180" : ""}`} />
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform ${showDateMenu ? "rotate-180" : ""}`}
+                />
               </button>
-
               {showDateMenu && (
                 <div className="absolute top-12 start-0 z-50 w-52 rounded-xl border border-border bg-panel p-1.5 shadow-xl animate-in fade-in slide-in-from-top-2">
-                  {(["ALL", "OVERDUE", "TODAY", "THIS_WEEK", "NEXT_TWO_WEEKS", "THIS_MONTH"] as DateFilter[]).map((opt) => (
-                    <button key={opt} onClick={() => { setFilterDate(opt); setShowDateMenu(false); }} className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition ${filterDate === opt ? "bg-accent/10 text-accent" : "text-secondary hover:bg-app hover:text-primary"}`}>
+                  {(
+                    [
+                      "ALL",
+                      "OVERDUE",
+                      "TODAY",
+                      "THIS_WEEK",
+                      "NEXT_TWO_WEEKS",
+                      "THIS_MONTH",
+                    ] as DateFilter[]
+                  ).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => {
+                        setFilterDate(opt);
+                        setShowDateMenu(false);
+                      }}
+                      className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition ${filterDate === opt ? "bg-accent/10 text-accent" : "text-secondary hover:bg-app hover:text-primary"}`}
+                    >
                       {t(DATE_FILTER_KEY[opt])}
-                      {filterDate === opt && <span className="h-1.5 w-1.5 rounded-full bg-accent" />}
+                      {filterDate === opt && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+                      )}
                     </button>
                   ))}
                 </div>
               )}
             </div>
-
-            <button onClick={() => setFilterMine(!filterMine)} className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-bold transition ${filterMine ? "border-accent bg-accent/10 text-accent" : "border-border bg-panel text-muted hover:text-primary"}`}>
+            <button
+              onClick={() => setFilterMine(!filterMine)}
+              className={`flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-bold transition ${filterMine ? "border-accent bg-accent/10 text-accent" : "border-border bg-panel text-muted hover:text-primary"}`}
+            >
               <UserCircle2 size={16} /> {t("board.filter.mine")}
             </button>
-
             {anyFilterActive && (
-              <button onClick={clearFilters} className="flex h-10 items-center gap-1 rounded-xl px-3 text-sm font-bold text-muted hover:text-primary transition">
+              <button
+                onClick={clearFilters}
+                className="flex h-10 items-center gap-1 rounded-xl px-3 text-sm font-bold text-muted hover:text-primary transition"
+              >
                 <X size={14} /> {t("board.filter.clear")}
               </button>
             )}
-
             {categories.length > 0 && <div className="h-6 w-px bg-border mx-1 hidden sm:block" />}
-
             <div className="flex flex-1 items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
               {categories.map((cat) => {
                 const isSelected = filterCategory === cat.id;
                 return (
-                  <button key={cat.id} onClick={() => setFilterCategory(isSelected ? null : cat.id)} className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition ${isSelected ? "border-accent bg-accent text-accent-text shadow-sm" : "border-border bg-panel text-muted hover:border-accent/50 hover:text-primary"}`}>
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: cat.color || "#64748B" }} />
+                  <button
+                    key={cat.id}
+                    onClick={() => setFilterCategory(isSelected ? null : cat.id)}
+                    className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition ${isSelected ? "border-accent bg-accent text-accent-text shadow-sm" : "border-border bg-panel text-muted hover:border-accent/50 hover:text-primary"}`}
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: cat.color || "#64748B" }}
+                    />
                     {cat.name}
                   </button>
                 );
@@ -692,12 +873,31 @@ export default function BoardPage() {
               <Layers className="h-10 w-10 text-muted" />
             </div>
             <h2 className="text-2xl font-black text-primary mb-2">{t("board.empty.title")}</h2>
-            <p className="text-sm text-muted max-w-md mx-auto mb-6">{anyFilterActive ? t("board.empty.withFilters") : t("board.empty.noTasks")}</p>
+
+            {/* RBAC: Show custom message for Technicians */}
+            <p className="text-sm text-muted max-w-md mx-auto mb-6">
+              {anyFilterActive
+                ? t("board.empty.withFilters")
+                : user.role === "LAB_TECHNICIAN"
+                  ? "No tasks on the board. Check 'My Tasks' for your assigned work."
+                  : t("board.empty.noTasks")}
+            </p>
+
             {anyFilterActive ? (
-              <button onClick={clearFilters} className="rounded-xl border border-border bg-panel px-5 py-2.5 text-sm font-bold text-primary hover:border-accent transition">{t("board.empty.clearFilters")}</button>
-            ) : (
-              <button onClick={() => setIsCreateOpen(true)} className="rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-accent-text hover:bg-accent-hover transition">{t("board.empty.createFirst")}</button>
-            )}
+              <button
+                onClick={clearFilters}
+                className="rounded-xl border border-border bg-panel px-5 py-2.5 text-sm font-bold text-primary hover:border-accent transition"
+              >
+                {t("board.empty.clearFilters")}
+              </button>
+            ) : canCreateTask ? (
+              <button
+                onClick={() => setIsCreateOpen(true)}
+                className="rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-accent-text hover:bg-accent-hover transition"
+              >
+                {t("board.empty.createFirst")}
+              </button>
+            ) : null}
           </div>
         ) : viewMode === "board" ? (
           <div
@@ -717,14 +917,22 @@ export default function BoardPage() {
               onDragOver={onDragOver}
               onDragEnd={onDragEnd}
             >
-              <div data-tour="columns" role="list" className="flex gap-5 items-start min-w-max pb-4 h-full">
+              <div
+                data-tour="columns"
+                role="list"
+                className="flex gap-5 items-start min-w-max pb-4 h-full"
+              >
                 {STATUSES.map((status) => {
                   const shown = displayColumns[status]?.length ?? 0;
                   const total = displayTotals[status] ?? shown;
                   const statusLabel = t(STATUS_KEY[status]);
                   const label = total > shown ? `${statusLabel} (${shown}/${total})` : statusLabel;
                   return (
-                    <div key={status} role="listitem" className="flex-shrink-0 w-[320px] flex flex-col max-h-full">
+                    <div
+                      key={status}
+                      role="listitem"
+                      className="flex-shrink-0 w-[320px] flex flex-col max-h-full"
+                    >
                       <Column
                         status={status}
                         label={label}
@@ -736,7 +944,9 @@ export default function BoardPage() {
                   );
                 })}
               </div>
-              <DragOverlay dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
+              <DragOverlay
+                dropAnimation={{ duration: 200, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}
+              >
                 {activeTask ? <TaskCard task={activeTask} /> : null}
               </DragOverlay>
             </DndContext>
@@ -756,20 +966,32 @@ export default function BoardPage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {allTasks.map((task) => (
-                    <tr key={task.id} className="hover:bg-panel-hover transition group cursor-pointer" onClick={() => (window.location.href = `/tasks/${task.id}`)}>
+                    <tr
+                      key={task.id}
+                      className="hover:bg-panel-hover transition group cursor-pointer"
+                      onClick={() => (window.location.href = `/tasks/${task.id}`)}
+                    >
                       <td className="px-6 py-4">
-                        <p className="font-bold text-primary group-hover:text-accent transition-colors">{task.title}</p>
+                        <p className="font-bold text-primary group-hover:text-accent transition-colors">
+                          {task.title}
+                        </p>
                         <p className="text-xs text-muted mt-0.5">{task.code}</p>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLE[task.status].bg} ${STATUS_STYLE[task.status].text} ${STATUS_STYLE[task.status].border}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${STATUS_STYLE[task.status].accent}`} />
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLE[task.status].bg} ${STATUS_STYLE[task.status].text} ${STATUS_STYLE[task.status].border}`}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${STATUS_STYLE[task.status].accent}`}
+                          />
                           {t(STATUS_KEY[task.status])}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-muted">{task.category?.name || "—"}</td>
                       <td className="px-6 py-4">
-                        <span className={`font-bold ${task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "COMPLETED" ? "text-red-500" : "text-muted"}`}>
+                        <span
+                          className={`font-bold ${task.dueDate && new Date(task.dueDate) < new Date() && task.status !== "COMPLETED" ? "text-red-500" : "text-muted"}`}
+                        >
                           {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "—"}
                         </span>
                       </td>
@@ -778,7 +1000,9 @@ export default function BoardPage() {
                           <div className="h-6 w-6 rounded-full bg-app-soft flex items-center justify-center text-[10px] font-bold text-muted border border-border">
                             {task.owner?.fullName.charAt(0).toUpperCase() || "U"}
                           </div>
-                          <span className="text-muted text-xs font-medium">{task.owner?.fullName || t("board.table.unassigned")}</span>
+                          <span className="text-muted text-xs font-medium">
+                            {task.owner?.fullName || t("board.table.unassigned")}
+                          </span>
                         </div>
                       </td>
                     </tr>
@@ -791,43 +1015,95 @@ export default function BoardPage() {
           <div className="h-full w-full overflow-auto p-4 md:p-6 no-scrollbar">
             <div className="rounded-xl border border-border bg-panel overflow-hidden flex flex-col h-full">
               <div className="p-4 border-b border-border flex items-center justify-between bg-app-soft/30 shrink-0">
-                <h2 className="text-lg font-black text-primary">{currentMonthName} {currentYear}</h2>
+                <h2 className="text-lg font-black text-primary">
+                  {currentMonthName} {currentYear}
+                </h2>
                 <div className="flex items-center gap-2">
-                  <button onClick={handlePrevMonth} className="p-1.5 rounded-lg border border-border bg-panel text-muted hover:text-primary transition"><ChevronLeft size={18} className="rtl:rotate-180" /></button>
-                  <button onClick={() => setCalendarDate(new Date())} className="px-3 py-1.5 rounded-lg border border-border bg-panel text-xs font-bold text-muted hover:text-primary transition">{t("board.calendar.today")}</button>
-                  <button onClick={handleNextMonth} className="p-1.5 rounded-lg border border-border bg-panel text-muted hover:text-primary transition"><ChevronRight size={18} className="rtl:rotate-180" /></button>
+                  <button
+                    onClick={handlePrevMonth}
+                    className="p-1.5 rounded-lg border border-border bg-panel text-muted hover:text-primary transition"
+                  >
+                    <ChevronLeft size={18} className="rtl:rotate-180" />
+                  </button>
+                  <button
+                    onClick={() => setCalendarDate(new Date())}
+                    className="px-3 py-1.5 rounded-lg border border-border bg-panel text-xs font-bold text-muted hover:text-primary transition"
+                  >
+                    {t("board.calendar.today")}
+                  </button>
+                  <button
+                    onClick={handleNextMonth}
+                    className="p-1.5 rounded-lg border border-border bg-panel text-muted hover:text-primary transition"
+                  >
+                    <ChevronRight size={18} className="rtl:rotate-180" />
+                  </button>
                 </div>
               </div>
-
               <div className="flex-1 overflow-y-auto no-scrollbar">
                 {monthTasks.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                     <CalendarDays className="h-12 w-12 text-muted opacity-50 mb-4" />
                     <p className="text-lg font-bold text-primary">{t("board.calendar.noTasks")}</p>
-                    <p className="text-sm text-muted mt-1 max-w-sm">{t("board.calendar.noTasksHint", { month: currentMonthName, year: currentYear })}</p>
+                    <p className="text-sm text-muted mt-1 max-w-sm">
+                      {t("board.calendar.noTasksHint", {
+                        month: currentMonthName,
+                        year: currentYear,
+                      })}
+                    </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-7 auto-rows-[minmax(120px,auto)]">
                     {DAY_KEYS.map((key) => (
-                      <div key={key} className="p-2 text-center text-xs font-bold text-muted uppercase tracking-wider border-b border-border sticky top-0 bg-panel z-10">{t(key)}</div>
+                      <div
+                        key={key}
+                        className="p-2 text-center text-xs font-bold text-muted uppercase tracking-wider border-b border-border sticky top-0 bg-panel z-10"
+                      >
+                        {t(key)}
+                      </div>
                     ))}
                     {Array.from({ length: firstDay }).map((_, i) => (
-                      <div key={`empty-${i}`} className="border-b border-e border-border bg-app-soft/20 opacity-50" />
+                      <div
+                        key={`empty-${i}`}
+                        className="border-b border-e border-border bg-app-soft/20 opacity-50"
+                      />
                     ))}
                     {Array.from({ length: daysInMonth }).map((_, i) => {
                       const dayNum = i + 1;
                       const dateStr = new Date(currentYear, currentMonth, dayNum).toDateString();
-                      const dayTasks = allTasks.filter((task) => task.dueDate && new Date(task.dueDate).toDateString() === dateStr);
-                      const isToday = dayNum === new Date().getDate() && currentMonth === new Date().getMonth() && currentYear === new Date().getFullYear();
+                      const dayTasks = allTasks.filter(
+                        (task) => task.dueDate && new Date(task.dueDate).toDateString() === dateStr,
+                      );
+                      const isToday =
+                        dayNum === new Date().getDate() &&
+                        currentMonth === new Date().getMonth() &&
+                        currentYear === new Date().getFullYear();
                       return (
-                        <div key={dayNum} className="border-b border-e border-border p-2 overflow-y-auto no-scrollbar hover:bg-app-soft/10 transition">
+                        <div
+                          key={dayNum}
+                          className="border-b border-e border-border p-2 overflow-y-auto no-scrollbar hover:bg-app-soft/10 transition"
+                        >
                           <div className="flex items-center justify-between mb-1.5">
-                            <span className={`text-xs font-bold ${isToday ? "bg-accent text-accent-text h-5 w-5 rounded-full flex items-center justify-center" : "text-muted"}`}>{dayNum}</span>
-                            {dayTasks.length > 0 && <span className="text-[10px] font-bold text-muted">{dayTasks.length}</span>}
+                            <span
+                              className={`text-xs font-bold ${isToday ? "bg-accent text-accent-text h-5 w-5 rounded-full flex items-center justify-center" : "text-muted"}`}
+                            >
+                              {dayNum}
+                            </span>
+                            {dayTasks.length > 0 && (
+                              <span className="text-[10px] font-bold text-muted">
+                                {dayTasks.length}
+                              </span>
+                            )}
                           </div>
                           <div className="space-y-1">
                             {dayTasks.map((task) => (
-                              <div key={task.id} onClick={() => (window.location.href = `/tasks/${task.id}`)} className={`cursor-pointer truncate rounded px-1.5 py-1 text-[10px] font-bold border-s-2 ${STATUS_STYLE[task.status].bg} ${STATUS_STYLE[task.status].text}`} style={{ borderInlineStartColor: "currentColor" }}>{task.title}</div>
+                              <div
+                                key={task.id}
+                                onClick={() => (window.location.href = `/tasks/${task.id}`)}
+                                className={`cursor-pointer truncate rounded px-1.5 py-1 text-[10px] font-bold border-s-2 ${STATUS_STYLE[task.status].bg} ${STATUS_STYLE[task.status].text}`}
+                                style={{ borderInlineStartColor: "currentColor" }}
+                              >
+                                {task.title}
+                              </div>
                             ))}
                           </div>
                         </div>
@@ -841,17 +1117,81 @@ export default function BoardPage() {
         )}
       </div>
 
-      <CreateTaskModal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} onSuccess={() => void loadData({ silent: true })} categories={categories} offices={offices} />
+      <CreateTaskModal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        onSuccess={() => void loadData({ silent: true })}
+        categories={categories}
+        offices={offices}
+      />
 
-      <Modal isOpen={!!pendingMove} onClose={cancelMove} title={pendingMove?.to === "BLOCKED" ? t("board.modal.blockTitle") : t("board.modal.returnTitle")} description={pendingMove?.to === "BLOCKED" ? t("board.modal.blockDesc") : t("board.modal.returnDesc")}>
+      <Modal
+        isOpen={!!pendingMove}
+        onClose={cancelMove}
+        title={
+          pendingMove?.to === "BLOCKED" ? t("board.modal.blockTitle") : t("board.modal.returnTitle")
+        }
+        description={
+          pendingMove?.to === "BLOCKED" ? t("board.modal.blockDesc") : t("board.modal.returnDesc")
+        }
+      >
         <div className="space-y-4">
-          <textarea ref={reasonRef} value={reasonInput} onChange={(e) => setReasonInput(e.target.value)} rows={4} placeholder={t("board.modal.reasonPlaceholder")} className="w-full rounded-xl border border-border bg-app p-3 text-primary outline-none transition focus:border-accent" />
+          <textarea
+            ref={reasonRef}
+            value={reasonInput}
+            onChange={(e) => setReasonInput(e.target.value)}
+            rows={4}
+            placeholder={t("board.modal.reasonPlaceholder")}
+            className="w-full rounded-xl border border-border bg-app p-3 text-primary outline-none transition focus:border-accent"
+          />
           <div className="flex justify-end gap-2">
-            <button onClick={cancelMove} className="rounded-lg px-4 py-2 text-sm font-bold text-muted hover:text-primary">{t("common.cancel")}</button>
-            <button onClick={() => pendingMove && executeMove(pendingMove.taskId, pendingMove.from, pendingMove.to, reasonInput)} disabled={isSubmitting || reasonInput.trim().length < 3} className="rounded-lg bg-accent px-5 py-2 text-sm font-bold text-accent-text disabled:opacity-50">
+            <button
+              onClick={cancelMove}
+              className="rounded-lg px-4 py-2 text-sm font-bold text-muted hover:text-primary"
+            >
+              {t("common.cancel")}
+            </button>
+            <button
+              onClick={() =>
+                pendingMove &&
+                executeMove(pendingMove.taskId, pendingMove.from, pendingMove.to, reasonInput)
+              }
+              disabled={isSubmitting || reasonInput.trim().length < 3}
+              className="rounded-lg bg-accent px-5 py-2 text-sm font-bold text-accent-text disabled:opacity-50"
+            >
               {isSubmitting ? t("board.modal.saving") : t("common.confirm")}
             </button>
           </div>
+        </div>
+      </Modal>
+
+      <AssignTaskModal
+        isOpen={!!assignModalTask}
+        onClose={() => setAssignModalTask(null)}
+        task={assignModalTask}
+        onSuccess={() => {
+          setAssignModalTask(null);
+          void loadData({ silent: true });
+        }}
+      />
+
+      <Modal
+        isOpen={!!errorModal}
+        onClose={() => setErrorModal(null)}
+        title={errorModal?.title || "Error"}
+        description={errorModal?.description}
+      >
+        <div className="flex flex-col items-center justify-center py-4 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10 mb-4">
+            <AlertTriangle className="h-8 w-8 text-red-500" />
+          </div>
+          <p className="text-sm text-secondary mb-6">{errorModal?.description}</p>
+          <button
+            onClick={() => setErrorModal(null)}
+            className="w-full rounded-xl bg-red-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-600 transition"
+          >
+            {t("common.close") || "Understood"}
+          </button>
         </div>
       </Modal>
     </div>

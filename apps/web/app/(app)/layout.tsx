@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { AppShell } from "@/components/layout/AppShell";
 import { Toaster } from "react-hot-toast";
 import { SpotlightTour } from "@/components/layout/SpotlightTour";
+import { RouteGuard } from "@/components/auth/RouteGuard"; // Import the new guard
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -10,7 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <AppShell user={user}>
-      {children}
+      <RouteGuard user={user}>{children}</RouteGuard>
       <Toaster
         position="bottom-right"
         toastOptions={{
@@ -24,7 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           success: { iconTheme: { primary: "#e8bc69", secondary: "#0F172A" } },
         }}
       />
-      <SpotlightTour/>
+      <SpotlightTour />
     </AppShell>
   );
 }

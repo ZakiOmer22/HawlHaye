@@ -1,3 +1,4 @@
+// apps/api/src/modules/auth/routes.ts
 import { Router } from "express";
 import { randomBytes } from "node:crypto";
 import rateLimit from "express-rate-limit";
@@ -27,6 +28,7 @@ import { authenticator, qrcodeLib } from "../../lib/otp";
 import { passkeysRouter } from "./passkeys";
 import { ensure2FAGraceStarted, compute2FAStatus } from "../../lib/twofa";
 import { generateBackupCodes, consumeBackupCode, countUnusedCodes } from "../../lib/backup-codes";
+import { getSystemSettings } from "../../middleware/settings";
 
 export const authRouter = Router();
 
@@ -58,8 +60,33 @@ const forgotPasswordLimiter = rateLimit({
   message: { error: { code: "rate_limited", message: "Too many attempts. Try again later." } },
 });
 
-function lockoutMinutesFor(attempts: number, role: string): number {
-  const threshold = env.LOGIN_MAX_ATTEMPTS;
+// ── Settings-aware helpers ──────────────────────────────────
+
+type SystemSettings = Awaited<ReturnType<typeof getSystemSettings>>;
+
+/** Resolve session TTL in milliseconds from settings, falling back to env. */
+function sessionTtlMs(settings: SystemSettings): number {
+  const minutes = settings?.sessionTimeout ?? env.SESSION_TTL_HOURS * 60;
+  return minutes * 60_000;
+}
+
+/** Extract the role-specific permission map from raw settings JSON. */
+function permissionMapFor(settings: SystemSettings, role: string): Record<string, boolean> {
+  const all = (settings?.pagePermissions as Record<string, Record<string, boolean>> | null) || {};
+  return all[role] || {};
+}
+
+/** Consistent branding payload across all auth responses. */
+function brandingOf(settings: SystemSettings) {
+  return {
+    logoUrl: settings?.logoUrl ?? null,
+    primaryColor: settings?.primaryColor ?? null,
+  };
+}
+
+// ── Lockout policy ──────────────────────────────────────────
+
+function lockoutMinutesFor(attempts: number, role: string, threshold: number): number {
   if (attempts < threshold) return 0;
 
   const isLeadershipRole = role === "DEAN" || role === "DEPUTY" || role === "ADMINISTRATOR";
@@ -71,11 +98,14 @@ function lockoutMinutesFor(attempts: number, role: string): number {
   return 24 * 60;
 }
 
+// ── LOGIN ───────────────────────────────────────────────────
+
 authRouter.post(
   "/login",
   loginLimiter,
   asyncHandler(async (req, res) => {
     const input = loginSchema.parse(req.body);
+    const settings = await getSystemSettings();
 
     const user = await prisma.user.findUnique({ where: { email: input.email } });
     if (!user || !user.passwordHash) {
@@ -115,7 +145,8 @@ authRouter.post(
 
     if (!ok) {
       const newFailedCount = user.failedLoginCount + 1;
-      const lockoutMinutes = lockoutMinutesFor(newFailedCount, user.role);
+      const threshold = settings?.maxLoginAttempts ?? env.LOGIN_MAX_ATTEMPTS;
+      const lockoutMinutes = lockoutMinutesFor(newFailedCount, user.role, threshold);
       const lockedUntil =
         lockoutMinutes > 0 ? new Date(Date.now() + lockoutMinutes * 60_000) : null;
 
@@ -174,7 +205,7 @@ authRouter.post(
     await ensure2FAGraceStarted(prisma, user.id);
 
     const token = generateToken();
-    const expiresAt = new Date(Date.now() + env.SESSION_TTL_HOURS * 3600_000);
+    const expiresAt = new Date(Date.now() + sessionTtlMs(settings));
 
     await prisma.session.create({
       data: {
@@ -215,10 +246,14 @@ authRouter.post(
         officeId: user.officeId,
         mustChangePassword: user.mustChangePassword,
         csrfToken,
+        permissions: permissionMapFor(settings, user.role),
+        branding: brandingOf(settings),
       },
     });
   }),
 );
+
+// ── LOGOUT (unchanged) ──────────────────────────────────────
 
 authRouter.post(
   "/logout",
@@ -246,6 +281,8 @@ authRouter.post(
     res.status(204).end();
   }),
 );
+
+// ── CHANGE PASSWORD (unchanged) ─────────────────────────────
 
 const changePasswordSchema = z
   .object({
@@ -316,6 +353,8 @@ authRouter.post(
   }),
 );
 
+// ── FORGOT PASSWORD (unchanged) ─────────────────────────────
+
 const forgotPasswordSchema = z.object({ email: z.string().email().max(254) }).strict();
 
 authRouter.post(
@@ -354,6 +393,8 @@ authRouter.post(
     res.status(204).end();
   }),
 );
+
+// ── RESET PASSWORD (unchanged) ──────────────────────────────
 
 const resetPasswordSchema = z
   .object({
@@ -413,6 +454,8 @@ authRouter.post(
   }),
 );
 
+// ── ACCEPT INVITE ───────────────────────────────────────────
+
 const acceptInviteSchema = z
   .object({
     token: z.string().min(32),
@@ -431,6 +474,8 @@ authRouter.post(
   "/invite/accept",
   asyncHandler(async (req, res) => {
     const input = acceptInviteSchema.parse(req.body);
+    const settings = await getSystemSettings();
+
     const invite = await prisma.invite.findUnique({
       where: { tokenHash: hashToken(input.token) },
     });
@@ -473,7 +518,7 @@ authRouter.post(
     });
 
     const token = generateToken();
-    const expiresAt = new Date(Date.now() + env.SESSION_TTL_HOURS * 3600_000);
+    const expiresAt = new Date(Date.now() + sessionTtlMs(settings));
 
     await prisma.session.create({
       data: {
@@ -511,10 +556,14 @@ authRouter.post(
         role: user.role,
         officeId: user.officeId,
         csrfToken,
+        permissions: permissionMapFor(settings, user.role),
+        branding: brandingOf(settings),
       },
     });
   }),
 );
+
+// ── ME ──────────────────────────────────────────────────────
 
 authRouter.get(
   "/me",
@@ -560,6 +609,7 @@ authRouter.get(
     }
 
     const twoFAStatus = compute2FAStatus(user);
+    const settings = await getSystemSettings();
 
     res.json({
       data: {
@@ -574,10 +624,14 @@ authRouter.get(
         lastLoginAt: user.lastLoginAt,
         impersonatedBy,
         twoFAStatus,
+        permissions: permissionMapFor(settings, user.role),
+        branding: brandingOf(settings),
       },
     });
   }),
 );
+
+// ── IMPERSONATE (unchanged) ─────────────────────────────────
 
 authRouter.post(
   "/impersonate/:userId",
@@ -668,6 +722,8 @@ authRouter.post(
   }),
 );
 
+// ── IMPERSONATION STOP (unchanged) ──────────────────────────
+
 authRouter.post(
   "/impersonation/stop",
   requireAuth,
@@ -731,6 +787,8 @@ authRouter.post(
   }),
 );
 
+// ── SESSIONS (unchanged) ────────────────────────────────────
+
 authRouter.get(
   "/sessions",
   requireAuth,
@@ -765,6 +823,8 @@ authRouter.delete(
   }),
 );
 
+// ── 2FA SETUP (unchanged) ───────────────────────────────────
+
 authRouter.post(
   "/2fa/setup",
   requireAuth,
@@ -784,6 +844,8 @@ authRouter.post(
     res.json({ data: { secret, qrCodeUrl } });
   }),
 );
+
+// ── 2FA VERIFY (unchanged) ──────────────────────────────────
 
 authRouter.post(
   "/2fa/verify",
@@ -822,6 +884,8 @@ authRouter.post(
   }),
 );
 
+// ── 2FA DISABLE (unchanged) ─────────────────────────────────
+
 authRouter.post(
   "/2fa/disable",
   requireAuth,
@@ -859,7 +923,8 @@ authRouter.post(
   }),
 );
 
-// ── Backup codes ──────────────────────────────────────────
+// ── BACKUP CODES (unchanged) ────────────────────────────────
+
 authRouter.get(
   "/2fa/backup-codes",
   requireAuth,
@@ -906,11 +971,15 @@ authRouter.post(
   }),
 );
 
+// ── 2FA AUTHENTICATE ────────────────────────────────────────
+
 authRouter.post(
   "/2fa/authenticate",
   asyncHandler(async (req, res) => {
     const { code, tempToken, isBackupCode } = req.body;
     if (!code || !tempToken) throw new HttpError(400, "Missing fields", "invalid_request");
+
+    const settings = await getSystemSettings();
 
     const challenge = await prisma.twoFactorChallenge.findUnique({
       where: { tokenHash: hashToken(tempToken) },
@@ -939,7 +1008,7 @@ authRouter.post(
     await prisma.twoFactorChallenge.delete({ where: { id: challenge.id } });
 
     const sessionToken = generateToken();
-    const expiresAt = new Date(Date.now() + env.SESSION_TTL_HOURS * 3600_000);
+    const expiresAt = new Date(Date.now() + sessionTtlMs(settings));
 
     await prisma.session.create({
       data: {
@@ -982,31 +1051,33 @@ authRouter.post(
         mustChangePassword: challenge.user.mustChangePassword,
         csrfToken,
         usedBackupCode,
+        permissions: permissionMapFor(settings, challenge.user.role),
+        branding: brandingOf(settings),
       },
     });
   }),
 );
 
-// ── Onboarding status ──────────────────────────────────────
+// ── ONBOARDING (unchanged) ──────────────────────────────────
+
 authRouter.get(
   "/onboarding",
   requireAuth,
   asyncHandler(async (req, res) => {
     const user = await prisma.user.findUnique({
-      where: { id: req.user!.id },              // ← was req.user.id
+      where: { id: req.user!.id },
       select: { onboardingCompletedAt: true },
     });
     res.json({ data: { completed: user?.onboardingCompletedAt !== null } });
   }),
 );
 
-// ── Mark onboarding as completed ───────────────────────────
 authRouter.post(
   "/onboarding/complete",
   requireAuth,
   asyncHandler(async (req, res) => {
     await prisma.user.update({
-      where: { id: req.user!.id },              // ← was req.user.id
+      where: { id: req.user!.id },
       data: { onboardingCompletedAt: new Date() },
     });
     res.status(204).end();

@@ -142,9 +142,12 @@ model User {
   passwordChangedAt  DateTime?
   mustChangePassword Boolean   @default(false)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
   onboardingCompletedAt DateTime?
+
+  resetTokenHash      String?
+  resetTokenExpiresAt DateTime?
 
   ownedTasks       Task[]          @relation("TaskOwner")
   assignedTasks    Task[]          @relation("TaskAssigner")
@@ -162,6 +165,9 @@ model User {
 
   passkeys    Passkey[]
   backupCodes BackupCode[]
+
+  tickets       Ticket[]      @relation("UserCreatedTickets")
+  ticketReplies TicketReply[] @relation("UserTicketReplies")
 
   @@index([role])
   @@index([officeId])
@@ -378,6 +384,8 @@ model Session {
 
 model Invite {
   id          String    @id @default(cuid())
+  fullName    String?
+  phone       String?
   email       String
   role        Role
   officeId    String?
@@ -392,9 +400,81 @@ model Invite {
 
   @@index([email])
   @@index([expiresAt])
-  @@index([invitedById]) // NEW
-  @@index([officeId]) // NEW
+  @@index([invitedById])
+  @@index([officeId])
   @@map("invites")
+}
+
+model SystemSettings {
+  id                 String   @id @default("global")
+  universityName     String   @default("University of Health Sciences")
+  supportEmail       String   @default("support@example.com")
+  timezone           String   @default("Africa/Mogadishu")
+
+  // Branding
+  logoUrl            String?
+  primaryColor       String?  @default("#e8bc69")
+
+  // Access control
+  maintenanceMode    Boolean  @default(false)
+  allowRegistration  Boolean  @default(false)
+  enforce2FA         Boolean  @default(false)
+  maxLoginAttempts   Int      @default(5)
+  sessionTimeout     Int      @default(10080)  // minutes (7 days)
+
+  // Notifications & limits
+  emailNotifications Boolean  @default(true)
+  storageLimitMb     Int      @default(10240)  // 10 GB
+
+  // Permissions matrix
+  pagePermissions    Json     @default("{}")
+
+  updatedAt          DateTime @updatedAt
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Ticket {
+  id          String         @id @default(cuid())
+  subject     String
+  description String
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+  category    String
+  createdById String
+  imageUrl    String?
+  createdBy   User             @relation("UserCreatedTickets", fields: [createdById], references: [id], onDelete: Cascade)
+  replies     TicketReply[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([createdById])
+  @@index([status])
+}
+
+model TicketReply {
+  id        String   @id @default(cuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  message   String
+  authorId  String
+  imageUrl    String?
+  author    User     @relation("UserTicketReplies", fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
 }
 
 model PasswordReset {
