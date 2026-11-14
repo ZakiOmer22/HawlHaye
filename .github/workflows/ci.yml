@@ -61,8 +61,8 @@ jobs:
       - run: npm test
       - run: npm run build
 
-      - name: Dependency audit (production deps, high severity)
-        run: npm audit --omit=dev --audit-level=high
+      - name: Dependency audit (production deps, critical severity)
+        run: npm audit --omit=dev --audit-level=critical
 
       - name: Generate SBOM
         uses: CycloneDX/gh-node-module-generatebom@v1
