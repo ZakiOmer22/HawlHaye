@@ -8,7 +8,7 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 /**
  * Endpoints that cannot possibly carry a CSRF cookie yet (pre-auth):
  *   - /login: the cookie is minted by the response to this call
- *   - /invite/accept: same — user has no session until success
+ *   - /invite/accept: same - user has no session until success
  * These are protected by rate limit + credentials instead.
  */
 const PRE_AUTH_PATHS = new Set(["/api/v1/auth/login", "/api/v1/auth/invite/accept"]);
@@ -24,16 +24,24 @@ export const csrfProtection: RequestHandler = (req, _res, next) => {
   if (PRE_AUTH_PATHS.has(req.path)) return next();
   if (env.NODE_ENV === "test") return next();
 
-  // ── Layer 1: Origin / Referer must match WEB_ORIGIN if present ──
+  // Layer 1: Origin / Referer must strictly match WEB_ORIGIN
   const origin = req.headers.origin || req.headers.referer;
-  if (origin && !origin.startsWith(env.WEB_ORIGIN)) {
-    return next(new HttpError(403, "CSRF validation failed: invalid origin", "csrf_failed"));
+  if (!origin) {
+    return next(new HttpError(403, "CSRF validation failed: missing origin", "csrf_failed"));
   }
 
-  // ── Layer 2: double-submit token (only if a CSRF cookie exists) ──
-  // SPA clients receive `csrf` at login and echo it as `X-CSRF-Token`.
-  // Non-browser clients (CLI, service accounts) have no cookie — they
-  // rely on Authorization headers and are not exposed to CSRF.
+  try {
+    const requestOrigin = new URL(origin).origin;
+    const expectedOrigin = new URL(env.WEB_ORIGIN).origin;
+
+    if (requestOrigin !== expectedOrigin) {
+      return next(new HttpError(403, "CSRF validation failed: invalid origin", "csrf_failed"));
+    }
+  } catch {
+    return next(new HttpError(403, "CSRF validation failed: malformed origin", "csrf_failed"));
+  }
+
+  // Layer 2: double-submit token (only if a CSRF cookie exists)
   const cookieToken = req.cookies?.["csrf"];
   if (typeof cookieToken === "string") {
     const headerToken = req.headers["x-csrf-token"];

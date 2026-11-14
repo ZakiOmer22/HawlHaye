@@ -29,6 +29,11 @@ import {
   Palette,
   HardDrive,
   Upload,
+  Users,
+  Building2,
+  Tag,
+  ScrollText,
+  Ticket,
 } from "lucide-react";
 
 const PAGES = [
@@ -38,6 +43,11 @@ const PAGES = [
   { key: "/review", label: "Review Queue", icon: ClipboardCheck },
   { key: "/dashboard", label: "Dashboard", icon: Gauge },
   { key: "/reports", label: "Reports", icon: BarChart3 },
+  { key: "/admin/users", label: "Users", icon: Users },
+  { key: "/admin/offices", label: "Offices", icon: Building2 },
+  { key: "/admin/categories", label: "Categories", icon: Tag },
+  { key: "/admin/audit", label: "Audit Log", icon: ScrollText },
+  { key: "/support", label: "Support", icon: Ticket },
 ];
 
 const ROLES = [

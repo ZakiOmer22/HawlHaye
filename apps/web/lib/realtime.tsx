@@ -34,8 +34,8 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       if (cancelled || retries >= MAX_RETRIES) return;
 
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-        const es = new EventSource(`${apiUrl}/api/v1/notifications/stream`, {
+        // Use relative path so it goes through the Next.js rewrite proxy
+        const es = new EventSource(`/api/v1/notifications/stream`, {
           withCredentials: true,
         });
         esRef.current = es;

@@ -62,14 +62,12 @@ type SystemLogEntry = {
 systemRouter.get(
   "/health",
   asyncHandler(async (_req, res) => {
-    // 1. Check Database & Fetch Full System Log
     let dbStatus: "up" | "down" = "up";
     let recentLogs: SystemLogEntry[] = [];
 
     try {
       await prisma.$queryRaw`SELECT 1`;
 
-      // Fetch the last 20 logs (actions, not just errors)
       const logs = await prisma.auditLog.findMany({
         include: {
           actor: { select: { fullName: true } },
@@ -90,10 +88,8 @@ systemRouter.get(
       dbStatus = "down";
     }
 
-    // 2. Check Redis
     const cacheStatus = await checkRedis(process.env.REDIS_URL);
 
-    // 3. OS Metrics
     const totalMem = os.totalmem() / (1024 * 1024 * 1024);
     const freeMem = os.freemem() / (1024 * 1024 * 1024);
     const usedMem = totalMem - freeMem;
@@ -111,7 +107,6 @@ systemRouter.get(
 
     const cpuUsage = Math.round(100 - (100 * totalIdle) / totalTick);
 
-    // 4. Disk Space
     let diskTotal = 0;
     let diskUsed = 0;
     try {
@@ -125,7 +120,6 @@ systemRouter.get(
       diskUsed = 0;
     }
 
-    // 5. Response
     res.json({
       data: {
         status: dbStatus === "up" ? "healthy" : "degraded",

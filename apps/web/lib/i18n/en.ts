@@ -858,6 +858,36 @@ export const en = {
   "settings.system.maintenance_mode": "Maintenance Mode",
   "settings.system.maintenance_mode_desc":
     "Blocks all non-admin access to the platform. Use only during critical upgrades.",
+
+  // ── Admin Billing ─────────────────────────────────────────
+  "nav.billing": "Billing",
+  "admin.billing.title": "Billing & Usage",
+  "admin.billing.subtitle": "Your plan, seats, and live usage from this deployment.",
+  "admin.billing.stats.plan": "Current plan",
+  "admin.billing.stats.users": "Users",
+  "admin.billing.stats.offices": "Offices",
+  "admin.billing.stats.categories": "Categories",
+  "admin.billing.plan.selfHosted": "Self-hosted",
+  "admin.billing.plan.unlimited": "Unlimited",
+  "admin.billing.plan.never": "Never",
+  "admin.billing.currentPlan.title": "Self-hosted plan",
+  "admin.billing.currentPlan.desc":
+    "Hosted on your organisation's own infrastructure. No per-seat fees.",
+  "admin.billing.currentPlan.active": "Active",
+  "admin.billing.features.seats": "Unlimited users and invitations",
+  "admin.billing.features.storage": "Unlimited task attachments and logo uploads",
+  "admin.billing.features.support": "Direct support from the HAWL team",
+  "admin.billing.features.dataOwnership": "Full data ownership — your database, your backups",
+  "admin.billing.comingSoon.title": "Coming soon",
+  "admin.billing.comingSoon.desc": "Hosted SaaS features currently in development.",
+  "admin.billing.comingSoon.plans": "Multi-tenant plans with per-seat billing",
+  "admin.billing.comingSoon.invoices": "Invoice history and downloadable PDF receipts",
+  "admin.billing.comingSoon.payments": "Payment methods via Stripe or local mobile-money gateway",
+  "admin.billing.contact.title": "Need enterprise pricing?",
+  "admin.billing.contact.desc":
+    "Talk to us about a hosted deployment, on-premise install, or custom SLAs.",
+  "admin.billing.contact.cta": "Contact sales",
+  "admin.billing.usage.error": "Failed to load usage",
 } as const;
 
 export type TranslationKey = keyof typeof en;

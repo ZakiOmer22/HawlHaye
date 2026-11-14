@@ -7,7 +7,7 @@ import crypto from "crypto";
 import fs from "fs";
 import xss from "xss";
 import rateLimit from "express-rate-limit";
-import { fileTypeFromBuffer } from "file-type";
+import { fromBuffer  } from "file-type";
 import { createTaskSchema, assignTaskSchema, transitionSchema } from "@hawl/shared";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler } from "../../middleware/async";
@@ -142,7 +142,15 @@ tasksRouter.get(
     if (typeof req.query.status === "string") {
       where.status = req.query.status as Prisma.TaskWhereInput["status"];
     }
-    if (typeof req.query.officeId === "string") where.officeId = req.query.officeId;
+
+    // FIXED: Only Admin, Dean, or Deputy can override the office scope
+    if (typeof req.query.officeId === "string") {
+      const isLeadership = ["ADMINISTRATOR", "DEAN", "DEPUTY"].includes(req.user!.role);
+      if (isLeadership) {
+        where.officeId = req.query.officeId;
+      }
+    }
+
     if (typeof req.query.categoryId === "string") where.categoryId = req.query.categoryId;
     if (typeof req.query.ownerId === "string") where.ownerId = req.query.ownerId;
     if (req.query.overdue === "true") {
@@ -557,7 +565,7 @@ tasksRouter.post(
     if (!req.file) throw new HttpError(400, "No file uploaded", "invalid_request");
 
     const fileBuffer = req.file.buffer;
-    const type = await fileTypeFromBuffer(fileBuffer);
+    const type = await fromBuffer(fileBuffer);
 
     if (!type || !ALLOWED_MIMES.includes(type.mime)) {
       logger.warn(

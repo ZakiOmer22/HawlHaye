@@ -3,26 +3,32 @@ import { env } from "../config/env";
 import { logger } from "./logger";
 import { getSystemSettings } from "../middleware/settings";
 
-// 1. Initialize the transporter once (reusable across requests)
 const transporter = nodemailer.createTransport({
   host: env.SMTP_HOST,
   port: env.SMTP_PORT || 587,
-  secure: env.SMTP_SECURE === "true", // true for 465, false for 587
+  secure: env.SMTP_SECURE === "true",
   auth: {
     user: env.SMTP_USER,
     pass: env.SMTP_PASS,
   },
 });
 
-// Helper to check if emails are enabled in system settings
-async function canSendEmail(): Promise<boolean> {
-  const settings = await getSystemSettings();
-  return settings?.emailNotifications !== false; // Defaults to true if null
+// ESCAPE HTML TO PREVENT XSS
+function escapeHtml(unsafe: string | null | undefined): string {
+  if (!unsafe) return "";
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
-// ==========================================
-// SHARED EMAIL LAYOUT (Dark/Light Mode + Logos)
-// ==========================================
+async function canSendEmail(): Promise<boolean> {
+  const settings = await getSystemSettings();
+  return settings?.emailNotifications !== false;
+}
+
 function getEmailWrapper(content: string): string {
   return `
     <!DOCTYPE html>
@@ -33,7 +39,6 @@ function getEmailWrapper(content: string): string {
       <meta name="color-scheme" content="light dark">
       <meta name="supported-color-schemes" content="light dark">
       <style>
-        /* Dark Mode Overrides */
         @media (prefers-color-scheme: dark) {
           .email-body { background-color: #0B1120 !important; }
           .email-card { background-color: #1E293B !important; border-color: #334155 !important; }
@@ -45,7 +50,6 @@ function getEmailWrapper(content: string): string {
           .btn-primary { background-color: #e8bc69 !important; color: #0F172A !important; }
           .footer-box { background-color: #0F172A !important; border-color: #334155 !important; }
         }
-        /* Mobile Responsiveness */
         @media only screen and (max-width: 600px) {
           .email-card { width: 100% !important; border-radius: 0 !important; border-left: none !important; border-right: none !important; }
           .content-padding { padding: 30px 20px !important; }
@@ -59,24 +63,17 @@ function getEmailWrapper(content: string): string {
       <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: inherit; padding: 40px 10px;">
         <tr>
           <td align="center">
-            <!-- Main Card -->
             <table class="email-card" width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%; background-color: #FFFFFF; border-radius: 16px; overflow: hidden; border: 1px solid #E5E7EB; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-
-              <!-- Top Accent Bar -->
               <tr>
                 <td height="6" style="background: linear-gradient(90deg, #e8bc69, #f1cf8b);"></td>
               </tr>
-
-              <!-- Logos Header -->
               <tr>
                 <td align="center" style="padding: 30px 20px; border-bottom: 1px solid #E5E7EB;" class="divider">
                   <table width="100%" border="0" cellspacing="0" cellpadding="0">
                     <tr>
-                      <!-- HAWLHAYE Logo -->
                       <td align="center" class="mobile-stack" width="50%" style="padding-bottom: 10px;">
                         <img src="${env.WEB_ORIGIN}/logo.png" alt="HAWLHAYE" width="80" style="display: block; margin: 0 auto; max-width: 100%; height: auto; border: 0;" />
                       </td>
-                      <!-- UOH Logo -->
                       <td align="center" class="mobile-stack" width="50%" style="padding-bottom: 10px;">
                         <img src="${env.WEB_ORIGIN}/uoh-logo.png" alt="University of Hargeisa" width="80" style="display: block; margin: 0 auto; max-width: 100%; height: auto; border: 0;" />
                       </td>
@@ -84,11 +81,7 @@ function getEmailWrapper(content: string): string {
                   </table>
                 </td>
               </tr>
-
-              <!-- Main Content Area -->
               ${content}
-
-              <!-- Footer -->
               <tr>
                 <td align="center" class="footer-box" style="padding: 24px 20px; background-color: #F9FAFB; border-top: 1px solid #E5E7EB;" class="divider">
                   <p class="text-muted" style="margin: 0 0 8px 0; color: #6B7280; font-size: 13px; font-weight: 600;">
@@ -109,9 +102,6 @@ function getEmailWrapper(content: string): string {
   `;
 }
 
-// ==========================================
-// TEMPLATE: PASSWORD RESET
-// ==========================================
 function getPasswordResetHtml(link: string, email: string): string {
   const content = `
     <tr>
@@ -120,12 +110,11 @@ function getPasswordResetHtml(link: string, email: string): string {
           Reset your password
         </h1>
         <p class="text-muted" style="margin: 0 0 24px 0; color: #4B5563; font-size: 16px; line-height: 1.6;">
-          We received a request to reset the password for your HAWLHAYE account associated with <strong class="text-main" style="color: #111827;">${email}</strong>.
+          We received a request to reset the password for your HAWLHAYE account associated with <strong class="text-main" style="color: #111827;">${escapeHtml(email)}</strong>.
         </p>
         <p class="text-muted" style="margin: 0 0 30px 0; color: #4B5563; font-size: 16px; line-height: 1.6;">
           Click the button below to choose a new password. This link is valid for <strong class="text-main" style="color: #111827;">1 hour</strong> and can only be used once.
         </p>
-
         <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 30px;">
           <tr>
             <td align="center">
@@ -135,7 +124,6 @@ function getPasswordResetHtml(link: string, email: string): string {
             </td>
           </tr>
         </table>
-
         <p class="text-muted" style="margin: 0; color: #6B7280; font-size: 14px; line-height: 1.6;">
           If you didn't request this, you can safely ignore this email. Your password will not change until you create a new one.
         </p>
@@ -145,9 +133,6 @@ function getPasswordResetHtml(link: string, email: string): string {
   return getEmailWrapper(content);
 }
 
-// ==========================================
-// TEMPLATE: INVITE (With Name, Role, Office, Steps)
-// ==========================================
 function getInviteHtml(
   link: string,
   role: string,
@@ -160,9 +145,9 @@ function getInviteHtml(
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
 
-  const greeting = fullName ? `Hi ${fullName.split(" ")[0]},` : "Hello,";
+  const greeting = fullName ? `Hi ${escapeHtml(fullName.split(" ")[0])},` : "Hello,";
   const title = fullName
-    ? `Welcome to HAWLHAYE, ${fullName.split(" ")[0]}`
+    ? `Welcome to HAWLHAYE, ${escapeHtml(fullName.split(" ")[0])}`
     : "You're invited to join HAWLHAYE";
 
   const content = `
@@ -172,13 +157,11 @@ function getInviteHtml(
           ${title}
         </h1>
         <p class="text-muted" style="margin: 0 0 24px 0; color: #4B5563; font-size: 16px; line-height: 1.6;">
-          ${greeting} <strong class="text-main" style="color: #111827;">${inviterName}</strong> has invited you to access the official task management platform for the College of Engineering and IT.
+          ${greeting} <strong class="text-main" style="color: #111827;">${escapeHtml(inviterName)}</strong> has invited you to access the official task management platform for the College of Engineering and IT.
         </p>
         <p class="text-muted" style="margin: 0 0 24px 0; color: #6B7280; font-size: 15px; line-height: 1.6;">
           HAWLHAYE helps our team assign, track, and complete tasks efficiently across all offices and departments. It replaces paper trails and ensures full accountability.
         </p>
-
-        <!-- Badges for Role and Office -->
         <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 30px;">
           <tr>
             <td align="center" class="mobile-stack" style="padding-bottom: 10px;">
@@ -193,7 +176,7 @@ function getInviteHtml(
             <td align="center" class="mobile-stack" style="padding-bottom: 10px;">
               <div class="badge-box" style="background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 12px 16px; display: inline-block; text-align: center; min-width: 140px;">
                 <p class="text-muted" style="margin: 0 0 4px 0; color: #6B7280; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Your Office</p>
-                <p class="text-main" style="margin: 0; color: #111827; font-size: 16px; font-weight: 800;">${officeName}</p>
+                <p class="text-main" style="margin: 0; color: #111827; font-size: 16px; font-weight: 800;">${escapeHtml(officeName)}</p>
               </div>
             </td>
             `
@@ -201,10 +184,7 @@ function getInviteHtml(
             }
           </tr>
         </table>
-
-        <!-- What to do next (Steps) -->
         <h2 class="text-main" style="margin: 0 0 16px 0; color: #111827; font-size: 16px; font-weight: 700;">What you need to do:</h2>
-
         <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 32px;">
           <tr>
             <td class="mobile-stack" width="40" valign="top" style="padding-bottom: 16px;">
@@ -231,8 +211,6 @@ function getInviteHtml(
             </td>
           </tr>
         </table>
-
-        <!-- CTA Button -->
         <table width="100%" border="0" cellspacing="0" cellpadding="0">
           <tr>
             <td align="center">
@@ -242,7 +220,6 @@ function getInviteHtml(
             </td>
           </tr>
         </table>
-
         <p class="text-muted" style="margin: 20px 0 0 0; color: #6B7280; font-size: 13px; text-align: center;">
           This secure link expires in <strong>48 hours</strong>.
         </p>
@@ -252,9 +229,6 @@ function getInviteHtml(
   return getEmailWrapper(content);
 }
 
-// ==========================================
-// TEMPLATE: CONTACT SALES
-// ==========================================
 function getContactEmailHtml(
   name: string,
   email: string,
@@ -272,14 +246,13 @@ function getContactEmailHtml(
         <p class="text-muted" style="margin: 0 0 24px 0; color: #4B5563; font-size: 16px; line-height: 1.6;">
           You have received a new message from the HAWLHAYE platform.
         </p>
-
         <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom: 24px; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
           <tr>
             <td style="padding: 12px 16px; background-color: #F9FAFB; border-bottom: 1px solid #E5E7EB; width: 40%;">
               <p class="text-muted" style="margin: 0; font-size: 13px; font-weight: 700; text-transform: uppercase;">From</p>
             </td>
             <td style="padding: 12px 16px; background-color: #F9FAFB; border-bottom: 1px solid #E5E7EB;">
-              <p class="text-main" style="margin: 0; font-size: 15px; font-weight: 700;">${name}</p>
+              <p class="text-main" style="margin: 0; font-size: 15px; font-weight: 700;">${escapeHtml(name)}</p>
             </td>
           </tr>
           <tr>
@@ -287,7 +260,7 @@ function getContactEmailHtml(
               <p class="text-muted" style="margin: 0; font-size: 13px; font-weight: 700; text-transform: uppercase;">Email</p>
             </td>
             <td style="padding: 12px 16px; border-bottom: 1px solid #E5E7EB;">
-              <a href="mailto:${email}" style="color: #D97706; font-size: 15px; text-decoration: none; font-weight: 600;">${email}</a>
+              <a href="mailto:${escapeHtml(email)}" style="color: #D97706; font-size: 15px; text-decoration: none; font-weight: 600;">${escapeHtml(email)}</a>
             </td>
           </tr>
           <tr>
@@ -295,7 +268,7 @@ function getContactEmailHtml(
               <p class="text-muted" style="margin: 0; font-size: 13px; font-weight: 700; text-transform: uppercase;">Phone</p>
             </td>
             <td style="padding: 12px 16px; border-bottom: 1px solid #E5E7EB;">
-              <p class="text-main" style="margin: 0; font-size: 15px;">${phone || "Not provided"}</p>
+              <p class="text-main" style="margin: 0; font-size: 15px;">${escapeHtml(phone) || "Not provided"}</p>
             </td>
           </tr>
           <tr>
@@ -303,7 +276,7 @@ function getContactEmailHtml(
               <p class="text-muted" style="margin: 0; font-size: 13px; font-weight: 700; text-transform: uppercase;">Organization</p>
             </td>
             <td style="padding: 12px 16px; border-bottom: 1px solid #E5E7EB;">
-              <p class="text-main" style="margin: 0; font-size: 15px;">${company || "Not provided"}</p>
+              <p class="text-main" style="margin: 0; font-size: 15px;">${escapeHtml(company) || "Not provided"}</p>
             </td>
           </tr>
           <tr>
@@ -311,22 +284,17 @@ function getContactEmailHtml(
               <p class="text-muted" style="margin: 0; font-size: 13px; font-weight: 700; text-transform: uppercase;">Inquiry</p>
             </td>
             <td style="padding: 12px 16px;">
-              <span style="display: inline-block; background-color: #e8bc69; color: #111827; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 800;">${inquiryType}</span>
+              <span style="display: inline-block; background-color: #e8bc69; color: #111827; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 800;">${escapeHtml(inquiryType)}</span>
             </td>
           </tr>
         </table>
-
         <h3 class="text-main" style="margin: 0 0 8px 0; color: #111827; font-size: 16px; font-weight: 700;">Message:</h3>
-        <div class="text-muted" style="background-color: #F9FAFB; border: 1px solid #E5E7EB; padding: 16px; border-radius: 8px; font-size: 15px; line-height: 1.6; white-space: pre-wrap;">${message}</div>
+        <div class="text-muted" style="background-color: #F9FAFB; border: 1px solid #E5E7EB; padding: 16px; border-radius: 8px; font-size: 15px; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(message)}</div>
       </td>
     </tr>
   `;
   return getEmailWrapper(content);
 }
-
-// ==========================================
-// SENDING LOGIC
-// ==========================================
 
 export async function sendContactEmail(
   name: string,
@@ -336,19 +304,15 @@ export async function sendContactEmail(
   inquiryType: string,
   message: string,
 ): Promise<void> {
-  // Check if email notifications are enabled
   if (!(await canSendEmail())) return;
-
   const toEmail = process.env.ADMIN_EMAIL || env.SMTP_USER;
 
   if (env.NODE_ENV !== "production" && (!env.SMTP_HOST || !env.SMTP_USER)) {
-    // eslint-disable-next-line no-console
     console.log(
       `\n[DEV MODE] Contact form submission from ${email}:\nSubject: ${inquiryType}\nMessage: ${message}\n`,
     );
     return;
   }
-
   if (!env.SMTP_HOST || !env.SMTP_USER) {
     logger.error("SMTP is not configured. Cannot send contact email.");
     throw new Error("Mailer not configured");
@@ -363,7 +327,6 @@ export async function sendContactEmail(
       text: `New contact inquiry from ${name} (${email}).\n\nPhone: ${phone}\nCompany: ${company}\nType: ${inquiryType}\n\nMessage:\n${message}`,
       html: getContactEmailHtml(name, email, phone, company, inquiryType, message),
     });
-
     logger.info({ messageId: info.messageId }, "Contact email sent successfully");
   } catch (error) {
     logger.error({ err: error }, "Failed to send contact email");
@@ -372,17 +335,13 @@ export async function sendContactEmail(
 }
 
 export async function sendPasswordReset(email: string, token: string): Promise<void> {
-  // Check if email notifications are enabled
   if (!(await canSendEmail())) return;
-
   const link = `${env.WEB_ORIGIN}/reset-password?token=${encodeURIComponent(token)}`;
 
   if (env.NODE_ENV !== "production" && (!env.SMTP_HOST || !env.SMTP_USER)) {
-    // eslint-disable-next-line no-console
     console.log(`\n[DEV MODE] No SMTP configured.\nPassword reset for ${email}:\n${link}\n`);
     return;
   }
-
   if (!env.SMTP_HOST || !env.SMTP_USER) {
     logger.error({ email }, "SMTP is not configured in production. Cannot send password reset.");
     throw new Error("Mailer not configured");
@@ -396,7 +355,6 @@ export async function sendPasswordReset(email: string, token: string): Promise<v
       text: `You requested a password reset. Click here to reset it: ${link} (Valid for 1 hour)`,
       html: getPasswordResetHtml(link, email),
     });
-
     logger.info({ messageId: info.messageId, email }, "Password reset email sent successfully");
   } catch (error) {
     logger.error({ err: error, email }, "Failed to send password reset email");
@@ -412,17 +370,13 @@ export async function sendInviteEmail(
   officeName: string | null = null,
   fullName: string | null = null,
 ): Promise<void> {
-  // Check if email notifications are enabled
   if (!(await canSendEmail())) return;
-
   const link = `${env.WEB_ORIGIN}/invite/accept?token=${encodeURIComponent(token)}`;
 
   if (env.NODE_ENV !== "production" && (!env.SMTP_HOST || !env.SMTP_USER)) {
-    // eslint-disable-next-line no-console
     console.log(`\n[DEV MODE] No SMTP configured.\nInvite for ${email}:\n${link}\n`);
     return;
   }
-
   if (!env.SMTP_HOST || !env.SMTP_USER) {
     logger.error({ email }, "SMTP is not configured in production. Cannot send invite.");
     throw new Error("Mailer not configured");
@@ -438,7 +392,6 @@ export async function sendInviteEmail(
       text: `${inviterName} has invited you to join HAWLHAYE as a ${role}. Accept your invite here: ${link}`,
       html: getInviteHtml(link, role, inviterName, officeName, fullName),
     });
-
     logger.info({ messageId: info.messageId, email }, "Invite email sent successfully");
   } catch (error) {
     logger.error({ err: error, email }, "Failed to send invite email");

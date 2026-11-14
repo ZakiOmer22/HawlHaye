@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import { ZodError } from "zod";
+import { Prisma } from "@prisma/client"; // ADDED
 import multer from "multer";
 import { logger } from "../lib/logger";
 
@@ -15,11 +16,6 @@ export class HttpError extends Error {
   }
 }
 
-/**
- * Thrown from multer fileFilter callbacks to reject an upload with a
- * client-safe message. Kept separate from HttpError because multer has its
- * own error path, but the resulting HTTP response is the same shape.
- */
 export class UploadRejectedError extends Error {
   constructor(
     message: string,
@@ -34,8 +30,6 @@ export function notFound(_req: Request, res: Response): void {
   res.status(404).json({ error: "not_found", message: "Route not found" });
 }
 
-// body-parser attaches `type` and `status` to its errors; there is no exported
-// class to `instanceof` against.
 function isBodyParserError(err: unknown): err is { type: string; status: number; message: string } {
   return (
     typeof err === "object" &&
@@ -104,13 +98,33 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     return;
   }
 
-  // 7. Expected application errors — safe to surface code + message
+  // 7. PRISMA ERROR MAPPING
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === "P2002") {
+      res
+        .status(409)
+        .json({ error: "conflict", message: "A record with this unique value already exists." });
+      return;
+    }
+    if (err.code === "P2025") {
+      res.status(404).json({ error: "not_found", message: "Record not found." });
+      return;
+    }
+    if (err.code === "P2003") {
+      res
+        .status(400)
+        .json({ error: "invalid_reference", message: "Related record does not exist." });
+      return;
+    }
+  }
+
+  // 8. Expected application errors — safe to surface code + message
   if (err instanceof HttpError) {
     res.status(err.status).json({ error: err.code, message: err.message });
     return;
   }
 
-  // 8. Unexpected — correlate the client-visible reference with the server log
+  // 9. Unexpected — correlate the client-visible reference with the server log
   const correlationId = randomUUID();
   const userId = (req as Request & { user?: { id: string } }).user?.id;
 

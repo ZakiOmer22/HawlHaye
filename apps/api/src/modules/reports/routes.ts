@@ -5,6 +5,7 @@ import { asyncHandler } from "../../middleware/async";
 import { requireAuth } from "../../middleware/auth";
 import { requireRole } from "../../middleware/rbac";
 import { taskScopeFor } from "../tasks/service";
+import { getUptimeReport } from "./uptime";
 
 export const reportsRouter = Router();
 reportsRouter.use(requireAuth);
@@ -31,10 +32,13 @@ reportsRouter.get(
     const from = f.from ? new Date(f.from) : thirtyDaysAgo;
     const to = f.to ? new Date(f.to) : now;
 
+    // FIXED: Only Admin, Dean, or Deputy can override the office scope
+    const isLeadership = ["ADMINISTRATOR", "DEAN", "DEPUTY"].includes(user.role);
+
     const baseWhere = {
       deletedAt: null,
       ...taskScopeFor(user),
-      ...(f.officeId ? { officeId: f.officeId } : {}),
+      ...(isLeadership && f.officeId ? { officeId: f.officeId } : {}),
       ...(f.categoryId ? { categoryId: f.categoryId } : {}),
     };
 
@@ -266,3 +270,11 @@ reportsRouter.get(
     });
   }),
 );
+
+reportsRouter.get("/uptime", requireRole("ADMINISTRATOR", "DEAN", "DEPUTY"), async (_req, res, next) => {
+  try {
+    res.json({ data: await getUptimeReport() });
+  } catch (e) {
+    next(e);
+  }
+});

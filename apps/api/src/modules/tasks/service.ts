@@ -1,10 +1,11 @@
+// apps/api/src/modules/tasks/service.ts
 import type { Prisma, Task } from "@prisma/client";
+import type { Request } from "express"; // Import Request type
 import { canTransition } from "@hawl/shared";
 import { prisma } from "../../lib/prisma";
 import { HttpError } from "../../middleware/errors";
 import { emitNotification, emitBoardChanged } from "../../lib/events";
-
-const canTransitionRaw = canTransition as unknown as (...args: unknown[]) => boolean;
+import { writeAudit } from "../../lib/audit";
 
 const LEADERSHIP = ["DEAN", "DEPUTY", "ADMINISTRATOR"] as const;
 const COORDINATOR = ["FACULTY_COORDINATOR", "LABS_COORDINATOR"] as const;
@@ -47,6 +48,7 @@ export type CreateTaskInputInternal = {
 export async function createTask(
   actor: NonNullable<Express.Request["user"]>,
   input: CreateTaskInputInternal,
+  req?: Request, // Fixed: Changed from any to Request
 ): Promise<Task> {
   const task = await prisma.$transaction(async (tx) => {
     const code = await nextTaskCode(tx);
@@ -68,6 +70,15 @@ export async function createTask(
     return t;
   });
 
+  await writeAudit({
+    actorId: actor.id,
+    action: "task.created",
+    entityType: "Task",
+    entityId: task.id,
+    meta: { title: task.title, code: task.code },
+    req,
+  });
+
   emitBoardChanged();
   return task;
 }
@@ -76,6 +87,7 @@ export async function assignTask(
   actor: NonNullable<Express.Request["user"]>,
   taskId: string,
   input: { ownerId: string; priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"; dueDate: Date },
+  req?: Request, // Fixed
 ): Promise<Task> {
   const updated = await prisma.$transaction(async (tx) => {
     const task = await tx.task.findUnique({ where: { id: taskId } });
@@ -84,8 +96,13 @@ export async function assignTask(
     const owner = await tx.user.findUnique({ where: { id: input.ownerId } });
     if (!owner || !owner.active) throw new HttpError(400, "Owner not valid", "invalid_owner");
 
-    if (!canTransitionRaw(actor, task, "ASSIGNED")) {
-      throw new HttpError(400, "Cannot assign from the current status", "invalid_transition");
+    const transitionCheck = canTransition(actor, { ...task, delegateId: null }, "ASSIGNED");
+    if (!transitionCheck.ok) {
+      throw new HttpError(
+        400,
+        transitionCheck.reason || "Cannot assign from the current status",
+        "invalid_transition",
+      );
     }
 
     const u = await tx.task.update({
@@ -111,6 +128,15 @@ export async function assignTask(
     return u;
   });
 
+  await writeAudit({
+    actorId: actor.id,
+    action: "task.assigned",
+    entityType: "Task",
+    entityId: taskId,
+    meta: { ownerId: input.ownerId, priority: input.priority },
+    req,
+  });
+
   emitNotification(input.ownerId, {
     type: "TASK_ASSIGNED",
     title: "New Task Assigned",
@@ -125,20 +151,21 @@ export async function transitionTask(
   actor: NonNullable<Express.Request["user"]>,
   taskId: string,
   input: { to: Task["status"]; reason?: string },
+  req?: Request, // Fixed
 ): Promise<Task> {
   const updated = await prisma.$transaction(async (tx) => {
     const task = await tx.task.findUnique({ where: { id: taskId } });
     if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
 
-    if (!canTransitionRaw(actor, task, input.to)) {
+    const transitionCheck = canTransition(actor, { ...task, delegateId: null }, input.to);
+    if (!transitionCheck.ok) {
       throw new HttpError(
         400,
-        `You cannot move a task from ${task.status} to ${input.to}`,
+        transitionCheck.reason || `You cannot move a task from ${task.status} to ${input.to}`,
         "invalid_transition",
       );
     }
 
-    // ── ADD THIS BLOCK: Catch database constraint before it hits Prisma ──
     if (input.to === "ASSIGNED") {
       if (!task.ownerId) {
         throw new HttpError(
@@ -155,7 +182,6 @@ export async function transitionTask(
         );
       }
     }
-    // ─────────────────────────────────────────────────────────────────────
 
     const data: Prisma.TaskUpdateInput = { status: input.to };
     if (input.to === "BLOCKED") data.blockedReason = input.reason ?? null;
@@ -177,6 +203,15 @@ export async function transitionTask(
     return u;
   });
 
+  await writeAudit({
+    actorId: actor.id,
+    action: "task.transitioned",
+    entityType: "Task",
+    entityId: taskId,
+    meta: { to: input.to, reason: input.reason },
+    req,
+  });
+
   if (updated.ownerId && updated.ownerId !== actor.id) {
     emitNotification(updated.ownerId, {
       type: "TASK_TRANSITIONED",
@@ -193,6 +228,7 @@ export async function delegateTask(
   actor: NonNullable<Express.Request["user"]>,
   taskId: string,
   input: { delegateId: string; reason?: string },
+  req?: Request, // Fixed
 ) {
   const delegation = await prisma.$transaction(async (tx) => {
     const task = await tx.task.findUnique({ where: { id: taskId } });
@@ -203,6 +239,14 @@ export async function delegateTask(
     if (input.delegateId === actor.id) {
       throw new HttpError(400, "You cannot delegate to yourself", "invalid_request");
     }
+
+    const existingPending = await tx.delegation.findFirst({
+      where: { taskId, status: "PENDING" },
+    });
+    if (existingPending) {
+      throw new HttpError(400, "There is already a pending delegation for this task.", "conflict");
+    }
+
     const delegate = await tx.user.findUnique({ where: { id: input.delegateId } });
     if (!delegate || !delegate.active) {
       throw new HttpError(400, "Delegate not valid", "invalid_delegate");
@@ -228,6 +272,15 @@ export async function delegateTask(
     return d;
   });
 
+  await writeAudit({
+    actorId: actor.id,
+    action: "task.delegated",
+    entityType: "Task",
+    entityId: taskId,
+    meta: { delegateId: input.delegateId, reason: input.reason },
+    req,
+  });
+
   emitNotification(input.delegateId, {
     type: "DELEGATION_RECEIVED",
     title: "New Delegation Request",
@@ -243,6 +296,7 @@ export async function respondToDelegation(
   taskId: string,
   delegationId: string,
   action: "ACCEPTED" | "DECLINED",
+  req?: Request, // Fixed
 ) {
   const result = await prisma.$transaction(async (tx) => {
     const delegation = await tx.delegation.findUnique({ where: { id: delegationId } });
@@ -256,6 +310,24 @@ export async function respondToDelegation(
       throw new HttpError(400, "Delegation already answered", "invalid_request");
     }
 
+    if (action === "ACCEPTED") {
+      const task = await tx.task.findUnique({ where: { id: taskId } });
+      if (!task) throw new HttpError(404, "Task not found", "not_found");
+
+      if (task.ownerId !== delegation.delegatedById) {
+        throw new HttpError(
+          400,
+          "The task has been reassigned by an admin, so this delegation is no longer valid.",
+          "invalid_request",
+        );
+      }
+
+      await tx.task.update({
+        where: { id: taskId },
+        data: { ownerId: delegation.delegateId },
+      });
+    }
+
     const u = await tx.delegation.update({
       where: { id: delegationId },
       data: {
@@ -265,12 +337,6 @@ export async function respondToDelegation(
       },
     });
 
-    if (action === "ACCEPTED") {
-      await tx.task.update({
-        where: { id: taskId },
-        data: { ownerId: delegation.delegateId },
-      });
-    }
     await tx.taskEvent.create({
       data: {
         taskId,
@@ -287,6 +353,15 @@ export async function respondToDelegation(
     return { u, delegation, actorName: actorUser?.fullName ?? "Someone" };
   });
 
+  await writeAudit({
+    actorId: actor.id,
+    action: `task.delegation_${action.toLowerCase()}`,
+    entityType: "Task",
+    entityId: taskId,
+    meta: { delegationId },
+    req,
+  });
+
   emitNotification(result.delegation.delegatedById, {
     type: "TASK_TRANSITIONED",
     title: `Delegation ${action === "ACCEPTED" ? "Accepted" : "Declined"}`,
@@ -297,7 +372,11 @@ export async function respondToDelegation(
   return result.u;
 }
 
-export async function softDeleteTask(actor: NonNullable<Express.Request["user"]>, taskId: string) {
+export async function softDeleteTask(
+  actor: NonNullable<Express.Request["user"]>,
+  taskId: string,
+  req?: Request, // Fixed
+) {
   const updated = await prisma.$transaction(async (tx) => {
     const task = await tx.task.findUnique({ where: { id: taskId } });
     if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
@@ -309,6 +388,14 @@ export async function softDeleteTask(actor: NonNullable<Express.Request["user"]>
       data: { taskId, actorId: actor.id, type: "SOFT_DELETED" },
     });
     return u;
+  });
+
+  await writeAudit({
+    actorId: actor.id,
+    action: "task.deleted",
+    entityType: "Task",
+    entityId: taskId,
+    req,
   });
 
   emitBoardChanged();

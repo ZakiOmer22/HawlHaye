@@ -37,5 +37,15 @@
   "overrides": {
     "@types/express": "^4.17.21",
     "@types/express-serve-static-core": "^4.19.5"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "prisma@6.19.3": true,
+    "argon2@0.45.1": true,
+    "esbuild@0.21.5": true,
+    "esbuild@0.28.2": true,
+    "core-js@3.51.0": true,
+    "@scarf/scarf@1.4.0": true
   }
 }

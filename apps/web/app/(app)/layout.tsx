@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { AppShell } from "@/components/layout/AppShell";
 import { Toaster } from "react-hot-toast";
 import { SpotlightTour } from "@/components/layout/SpotlightTour";
-import { RouteGuard } from "@/components/auth/RouteGuard"; // Import the new guard
+import { RouteGuard } from "@/components/auth/RouteGuard";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();

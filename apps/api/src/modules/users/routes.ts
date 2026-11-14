@@ -1,3 +1,4 @@
+// apps/api/src/modules/users/routes.ts
 import { Router } from "express";
 import { z } from "zod";
 import type { Role } from "@prisma/client";
@@ -61,7 +62,6 @@ usersRouter.post(
         data: {
           email: invite.email,
           passwordHash,
-          // Use the invite's fullName if it was provided, otherwise fallback to email prefix
           fullName: invite.fullName || invite.email.split("@")[0],
           role: invite.role,
           officeId: invite.officeId,
@@ -233,8 +233,8 @@ usersRouter.post(
           expiresAt,
           acceptedAt: null,
           revokedAt: null,
-          fullName: input.fullName, // Save fullName
-          phone: input.phone, // Save phone
+          fullName: input.fullName,
+          phone: input.phone,
         },
       });
     } else {
@@ -246,8 +246,8 @@ usersRouter.post(
           invitedById: req.user!.id,
           tokenHash: hashToken(token),
           expiresAt,
-          fullName: input.fullName, // Save fullName
-          phone: input.phone, // Save phone
+          fullName: input.fullName,
+          phone: input.phone,
         },
       });
     }
@@ -269,7 +269,6 @@ usersRouter.post(
       ip: req.ip,
     });
 
-    // Fetch inviter name and office name for the email
     const inviter = await prisma.user.findUnique({
       where: { id: req.user!.id },
       select: { fullName: true },
@@ -329,6 +328,20 @@ usersRouter.patch(
 
     const previous = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!previous) throw new HttpError(404, "User not found", "not_found");
+
+    // Prevent DEAN from promoting to ADMINISTRATOR or modifying an ADMINISTRATOR
+    if (req.user!.role === "DEAN") {
+      if (input.role === "ADMINISTRATOR") {
+        throw new HttpError(
+          403,
+          "Only an Administrator can promote a user to Administrator.",
+          "forbidden",
+        );
+      }
+      if (previous.role === "ADMINISTRATOR") {
+        throw new HttpError(403, "You cannot modify an Administrator account.", "forbidden");
+      }
+    }
 
     const updated = await prisma.user.update({
       where: { id: req.params.id },

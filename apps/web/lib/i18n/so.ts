@@ -879,4 +879,37 @@ export const so: Record<TranslationKey, string> = {
   "settings.system.maintenance_mode": "Habka Dayactirka",
   "settings.system.maintenance_mode_desc":
     "Wuxuu xannibayaa dhammaan gelitaanka aan maamulka ahayn ee madasha. Isticmaal kaliya inta lagu jiro casriyaynta muhiimka ah.",
+
+  // ── Admin Billing ─────────────────────────────────────────
+  "nav.billing": "Biilasha",
+  "admin.billing.title": "Biilasha & Isticmaalka",
+  "admin.billing.subtitle":
+    "Qorshahaaga, kuraasta, iyo isticmaalka waqtiga-dhabta ah ee rakibaaddan.",
+  "admin.billing.stats.plan": "Qorshaha hadda",
+  "admin.billing.stats.users": "Isticmaalayaasha",
+  "admin.billing.stats.offices": "Xafiisyada",
+  "admin.billing.stats.categories": "Qaybaha",
+  "admin.billing.plan.selfHosted": "Isku-furan",
+  "admin.billing.plan.unlimited": "Aan xaddidnayn",
+  "admin.billing.plan.never": "Waligeed",
+  "admin.billing.currentPlan.title": "Qorshaha isku-furan",
+  "admin.billing.currentPlan.desc":
+    "Waxaa lagu martigeliyay kaabayaasha ururkaaga. Ma jiro lacag-gelin qofkiiba.",
+  "admin.billing.currentPlan.active": "Firfircoon",
+  "admin.billing.features.seats": "Isticmaalayaal iyo casuumaado aan xaddidnayn",
+  "admin.billing.features.storage": "Lifaaqyada hawlaha iyo calaamadaha aan xaddidnayn",
+  "admin.billing.features.support": "Taageero toos ah oo ka timid kooxda HAWL",
+  "admin.billing.features.dataOwnership": "Lahaanshaha xogta oo buuxa — keydkaaga, kaydkaaga",
+  "admin.billing.comingSoon.title": "Dhowaan imanaya",
+  "admin.billing.comingSoon.desc": "Astaamaha SaaS ee martigelinta ah ee hadda la horumarinayo.",
+  "admin.billing.comingSoon.plans": "Qorshayaal badan oo leh lacag-gelin kuraas kasta",
+  "admin.billing.comingSoon.invoices":
+    "Taariikhda qaansheegta iyo rasiidhada PDF ee la soo dejisan karo",
+  "admin.billing.comingSoon.payments":
+    "Hababka lacag-bixinta ee Stripe ama lacagta mobilka maxalliga ah",
+  "admin.billing.contact.title": "Ma u baahan tahay qiimo ganacsi?",
+  "admin.billing.contact.desc":
+    "Nala hadal rakibaad martigelin ah, rakibaad gudaha ah, ama heshiisyo SLA gaar ah.",
+  "admin.billing.contact.cta": "La xiriir iibka",
+  "admin.billing.usage.error": "Ku guuldareystay in la soo raro isticmaalka",
 };

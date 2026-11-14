@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import DOMPurify from "isomorphic-dompurify";
 import { api, ApiError } from "@/lib/api";
 import {
   ArrowLeft,
@@ -54,6 +55,17 @@ function DynamicIcon({
   return <IconComponent size={size} className={className} />;
 }
 
+// Validates that the URL is http or https to prevent XSS via javascript: or data:
+function isValidUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return ["http:", "https:"].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
 export default function HelpArticleDetailPage() {
   const { category: categorySlug, articleId } = useParams<{
     category: string;
@@ -66,21 +78,18 @@ export default function HelpArticleDetailPage() {
   const [feedback, setFeedback] = useState<"yes" | "no" | null>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
 
-  // Fetch all help data
   useEffect(() => {
     api<{ data: HelpCategory[] }>("/help")
       .then((res) => setCategories(res.data))
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load article"));
   }, []);
 
-  // Reset state on navigation
   useEffect(() => {
     setFeedback(null);
     setCopied(false);
     window.scrollTo(0, 0);
   }, [categorySlug, articleId]);
 
-  // Handle reading progress and back-to-top visibility
   useEffect(() => {
     const handleScroll = () => {
       const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
@@ -91,7 +100,6 @@ export default function HelpArticleDetailPage() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Find current article, related data, and prev/next
   const { article, category, relatedArticles, prevArticle, nextArticle } = useMemo(() => {
     if (!categories)
       return {
@@ -135,7 +143,6 @@ export default function HelpArticleDetailPage() {
     };
   }, [categories, categorySlug, articleId]);
 
-  // Calculate reading time
   const readingTime = useMemo(() => {
     if (!article) return 0;
     const text = article.content.replace(/<[^>]*>?/gm, "");
@@ -177,7 +184,6 @@ export default function HelpArticleDetailPage() {
 
   return (
     <div className="w-full max-w-[1400px] mx-auto min-h-screen bg-app pb-24 relative">
-      {/* Reading Progress Bar */}
       <div className="fixed top-0 left-0 w-full h-1 z-[200] bg-transparent pointer-events-none">
         <div
           className="h-full bg-accent transition-all duration-100 ease-out"
@@ -186,7 +192,6 @@ export default function HelpArticleDetailPage() {
       </div>
 
       <div className="px-4 sm:px-6 md:px-8 py-6 sm:py-10 max-w-[1200px] mx-auto">
-        {/* Breadcrumbs */}
         <nav className="flex items-center flex-wrap gap-2 text-sm text-muted mb-8">
           <Link
             href="/help"
@@ -205,7 +210,6 @@ export default function HelpArticleDetailPage() {
         </nav>
 
         <div className="grid lg:grid-cols-[260px_1fr] gap-10 xl:gap-16 items-start">
-          {/* Sticky Sidebar (Desktop Only) */}
           <aside className="hidden lg:block sticky top-24 self-start max-h-[calc(100dvh-8rem)] overflow-y-auto custom-scrollbar pr-4">
             <div className="mb-4">
               <h3 className="text-xs font-extrabold uppercase tracking-wider text-muted flex items-center gap-2 mb-4">
@@ -241,9 +245,7 @@ export default function HelpArticleDetailPage() {
             </div>
           </aside>
 
-          {/* Main Article Content */}
           <article className="min-w-0">
-            {/* Header */}
             <header className="space-y-6 mb-10">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 border border-accent/20 px-3 py-1 text-xs font-bold text-accent">
@@ -294,8 +296,7 @@ export default function HelpArticleDetailPage() {
               </div>
             </header>
 
-            {/* Video Embed */}
-            {article.videoUrl && (
+            {article.videoUrl && isValidUrl(article.videoUrl) && (
               <div className="aspect-video w-full rounded-2xl overflow-hidden border border-border bg-black shadow-xl mb-10">
                 <iframe
                   src={article.videoUrl}
@@ -307,7 +308,6 @@ export default function HelpArticleDetailPage() {
               </div>
             )}
 
-            {/* Main Content (Prose) */}
             <div className="py-2">
               <div
                 className="text-base sm:text-lg text-secondary leading-relaxed max-w-none break-words [word-break:break-word] prose prose-invert prose-base sm:prose-lg overflow-x-auto
@@ -324,12 +324,11 @@ export default function HelpArticleDetailPage() {
                   prose-code:text-accent prose-code:bg-panel prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:before:content-none prose-code:after:content-none prose-code:[word-break:break-all]
                   prose-pre:bg-panel prose-pre:border prose-pre:border-border prose-pre:rounded-xl prose-pre:p-5 prose-pre:text-sm prose-pre:shadow-sm
                   prose-img:rounded-xl prose-img:border prose-img:border-border prose-img:w-full prose-img:h-auto prose-img:shadow-md"
-                dangerouslySetInnerHTML={{ __html: article.content }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.content) }}
               />
             </div>
 
-            {/* Attachments */}
-            {article.fileUrl && (
+            {article.fileUrl && isValidUrl(article.fileUrl) && (
               <div className="mt-10 rounded-2xl border border-border bg-panel p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
                 <div className="flex items-center gap-4">
                   <div className="p-3 rounded-xl bg-accent/10 text-accent">
@@ -353,7 +352,6 @@ export default function HelpArticleDetailPage() {
               </div>
             )}
 
-            {/* Prev / Next Navigation */}
             <div className="mt-12 grid sm:grid-cols-2 gap-4">
               {prevArticle ? (
                 <Link
@@ -388,7 +386,6 @@ export default function HelpArticleDetailPage() {
               )}
             </div>
 
-            {/* Feedback */}
             <div className="mt-12 rounded-2xl border border-border bg-panel p-8 text-center flex flex-col items-center shadow-sm">
               {feedback ? (
                 <div className="animate-in fade-in zoom-in duration-300">
@@ -428,7 +425,6 @@ export default function HelpArticleDetailPage() {
               )}
             </div>
 
-            {/* Related Articles */}
             {relatedArticles.length > 0 && (
               <div className="mt-16 pt-8 border-t border-border">
                 <h2 className="text-lg font-black text-primary mb-6 flex items-center gap-2">

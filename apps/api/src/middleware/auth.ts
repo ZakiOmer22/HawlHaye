@@ -45,9 +45,20 @@ export const requireAuth: RequestHandler = asyncHandler(async (req, _res, next) 
       });
   }
 
-  // Exclude passwordHash: req.user is read-only downstream and may be serialized.
-  const { passwordHash: _passwordHash, ...safeUser } = session.user;
+  // Strip sensitive fields from req.user to prevent accidental exposure
+  const {
+    passwordHash: _passwordHash,
+    twoFactorSecret: _twoFactorSecret,
+    resetTokenHash: _resetTokenHash,
+    resetTokenExpiresAt: _resetTokenExpiresAt,
+    ...safeUser
+  } = session.user;
+
   void _passwordHash;
+  void _twoFactorSecret;
+  void _resetTokenHash;
+  void _resetTokenExpiresAt;
+
   req.user = safeUser;
 
   if (session.user.mustChangePassword) {

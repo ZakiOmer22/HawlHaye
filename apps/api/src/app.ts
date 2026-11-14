@@ -1,3 +1,4 @@
+// apps/api/src/app.ts
 import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -5,7 +6,7 @@ import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import compression from "compression";
 import swaggerUi from "swagger-ui-express";
-import path from "node:path"; // 🚀 Import path
+import path from "node:path";
 import { type Env } from "./config/env";
 import { logger } from "./lib/logger";
 import { registerModules } from "./modules";
@@ -22,6 +23,8 @@ const JSON_BODY_LIMIT = "1mb";
 
 export function createApp(env: Env): Express {
   const app = express();
+  const isProd = env.NODE_ENV === "production";
+
   app.set("trust proxy", env.TRUST_PROXY);
   app.set("etag", "strong");
 
@@ -35,9 +38,17 @@ export function createApp(env: Env): Express {
           frameAncestors: ["'none'"],
           baseUri: ["'none'"],
           formAction: ["'none'"],
+          // Allow the API to serve JSON and static files.
+          // We allow Swagger UI to load in dev, but not in production.
+          scriptSrc: ["'self'", ...(isProd ? [] : ["'unsafe-eval'", "'unsafe-inline'"])],
+          styleSrc: ["'self'", ...(isProd ? [] : ["'unsafe-inline'"])],
+          imgSrc: ["'self'", "data:", "blob:"],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
         },
       },
-      hsts: { maxAge: 63_072_000, includeSubDomains: true, preload: true },
+      hsts: isProd ? { maxAge: 63_072_000, includeSubDomains: true, preload: true } : false,
       referrerPolicy: { policy: "no-referrer" },
       crossOriginEmbedderPolicy: false,
     }),
@@ -57,8 +68,6 @@ export function createApp(env: Env): Express {
 
   app.use(compression());
   app.use(globalLimiter);
-
-  // 🚀 TELL EXPRESS TO SERVE UPLOADED FILES FROM THE PUBLIC DIRECTORY
   app.use(express.static(path.join(process.cwd(), "public")));
 
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
@@ -77,11 +86,21 @@ export function createApp(env: Env): Express {
     next();
   });
 
-  const logBodies = env.NODE_ENV !== "production";
+  const logBodies = !isProd;
 
   app.use(
     pinoHttp({
       logger,
+      redact: {
+        paths: [
+          "req.headers.cookie",
+          "res.headers['set-cookie']",
+          "req.headers.authorization",
+          "req.headers['x-confirm-password']",
+          "req.query.t",
+        ],
+        censor: "[REDACTED]",
+      },
       autoLogging: { ignore: (req) => req.url === "/health" },
       customSuccessMessage: (req, res, responseTime) => {
         const ip =
@@ -100,7 +119,7 @@ export function createApp(env: Env): Express {
     }),
   );
 
-  if (env.NODE_ENV !== "production") {
+  if (!isProd) {
     app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
   }
 
@@ -110,7 +129,6 @@ export function createApp(env: Env): Express {
 
   app.use("/api/v1", cacheControl);
 
-  // 🚀 APPLY SETTINGS ENFORCEMENT GLOBALLY
   app.use(checkMaintenance);
   app.use(check2FA);
 

@@ -2,7 +2,7 @@
 // HAWLHAYE Service Worker
 // Strategy:
 // - Static assets (JS, CSS, fonts, images): cache-first (they're content-hashed)
-// - HTML navigations: network-first with cache fallback
+// - HTML navigations: network-only, fallback to offline (never cached due to auth)
 // - API calls and RSC payloads: never touched (security + freshness)
 
 const CACHE_VERSION = "v1";
@@ -10,7 +10,7 @@ const STATIC_CACHE = `hawl-static-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = ["/", "/offline", "/manifest.webmanifest"];
 
-// ── Install: precache the essentials ──
+// Install: precache the essentials
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
@@ -20,7 +20,7 @@ self.addEventListener("install", (event) => {
   );
 });
 
-// ── Activate: clean up old cache versions ──
+// Activate: clean up old cache versions
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
@@ -36,7 +36,16 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// ── Fetch: apply caching strategy ──
+// Listen for logout to clear all caches
+self.addEventListener("message", (event) => {
+  if (event.data === "CLEAR_CACHE") {
+    event.waitUntil(
+      caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key)))),
+    );
+  }
+});
+
+// Fetch: apply caching strategy
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -71,12 +80,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // HTML navigations: network-first
+  // HTML navigations: network-first, offline fallback only (no caching of HTML)
   if (
     request.mode === "navigate" ||
     (request.method === "GET" && request.headers.get("Accept")?.includes("text/html"))
   ) {
-    event.respondWith(networkFirst(request));
+    event.respondWith(networkOnlyWithOfflineFallback(request));
     return;
   }
 });
@@ -97,18 +106,11 @@ async function cacheFirst(request) {
   }
 }
 
-async function networkFirst(request) {
+async function networkOnlyWithOfflineFallback(request) {
   try {
-    const response = await fetch(request);
-    if (response.ok && response.status === 200) {
-      const cache = await caches.open(STATIC_CACHE);
-      cache.put(request, response.clone()).catch(() => {});
-    }
-    return response;
+    // Always fetch from network. Never cache authenticated HTML.
+    return await fetch(request);
   } catch {
-    const cached = await caches.match(request);
-    if (cached) return cached;
-
     const offlinePage = await caches.match("/offline");
     if (offlinePage) return offlinePage;
 

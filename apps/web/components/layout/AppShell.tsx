@@ -56,7 +56,6 @@ import { SpotlightTour } from "./SpotlightTour";
 import { TourConfetti } from "./TourConfetti";
 import { Modal } from "@/components/ui/Modal";
 
-// ── Extended User Type to include the new settings data ──
 type AppUser = User & {
   branding?: {
     logoUrl?: string | null;
@@ -74,7 +73,6 @@ type NavItem = {
   roles: string[];
 };
 
-// Create a typed version of Logo to avoid using 'any' for the new props
 const ExtendedLogo = Logo as React.ComponentType<
   React.ComponentProps<typeof Logo> & { logoUrl?: string; appName?: string }
 >;
@@ -197,6 +195,25 @@ function ShellInner({
     return item.roles.includes("ALL") || item.roles.includes(user.role);
   });
 
+  const allowedManagementNav = MANAGEMENT_NAV.filter((item) => {
+    if (user.role === "ADMINISTRATOR") return true;
+    if (Object.keys(userPermissions).length > 0) {
+      return userPermissions[item.href] === true;
+    }
+    return ["DEAN", "DEPUTY"].includes(user.role);
+  });
+
+  const canViewUsers =
+    user.role === "ADMINISTRATOR" ||
+    (Object.keys(userPermissions).length > 0
+      ? userPermissions["/admin/users"] === true
+      : ["DEAN", "DEPUTY"].includes(user.role));
+
+  const adminDropdownLinks = [
+    ...(canViewUsers ? [{ href: "/admin/users", label: "Users", icon: Users }] : []),
+    ...allowedManagementNav,
+  ];
+
   const isSysAdmin = user.role === "ADMINISTRATOR";
   const isAdminRole = ["DEAN", "DEPUTY", "ADMINISTRATOR"].includes(user.role);
   const mobileDock: NavItem[] = isSysAdmin
@@ -241,6 +258,12 @@ function ShellInner({
     } catch {
       /* ignore */
     }
+
+    // Clear Service Worker cache so the next user does not see this user's data
+    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage("CLEAR_CACHE");
+    }
+
     router.push("/login");
     router.refresh();
   }
@@ -496,7 +519,7 @@ function ShellInner({
                       setAdminMenuOpen(!adminMenuOpen);
                       setAcademicMenuOpen(false);
                     }}
-                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold whitespace-nowrap transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${MANAGEMENT_NAV.some((a) => isActive(a.href)) ? "bg-[rgba(var(--accent-rgb),0.15)] text-[var(--accent)] border border-[rgba(var(--accent-rgb),0.3)]" : "text-[#CBD5E1] hover:bg-[#1E293B] hover:text-white border border-transparent"}`}
+                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold whitespace-nowrap transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${allowedManagementNav.some((a) => isActive(a.href)) ? "bg-[rgba(var(--accent-rgb),0.15)] text-[var(--accent)] border border-[rgba(var(--accent-rgb),0.3)]" : "text-[#CBD5E1] hover:bg-[#1E293B] hover:text-white border border-transparent"}`}
                   >
                     <Settings2 size={16} /> Management{" "}
                     <ChevronDown
@@ -507,7 +530,7 @@ function ShellInner({
                   {adminMenuOpen && (
                     <div className="absolute left-0 mt-2 w-56 rounded-xl border border-[#334155] bg-[#1E293B] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150 z-50">
                       <div className="p-2 space-y-1">
-                        {MANAGEMENT_NAV.map((link) => {
+                        {allowedManagementNav.map((link) => {
                           const Icon = link.icon;
                           const active = isActive(link.href);
                           return (
@@ -549,11 +572,11 @@ function ShellInner({
                   );
                 })}
 
-                {isAdminRole && (
+                {isAdminRole && adminDropdownLinks.length > 0 && (
                   <div className="relative" ref={adminMenuRef}>
                     <button
                       onClick={() => setAdminMenuOpen(!adminMenuOpen)}
-                      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold whitespace-nowrap transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${[...MANAGEMENT_NAV, { href: "/admin/users", label: "Users", icon: Users }].some((a) => isActive(a.href)) ? "bg-[rgba(var(--accent-rgb),0.15)] text-[var(--accent)] border border-[rgba(var(--accent-rgb),0.3)]" : "text-[#CBD5E1] hover:bg-[#1E293B] hover:text-white border border-transparent"}`}
+                      className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold whitespace-nowrap transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${adminDropdownLinks.some((a) => isActive(a.href)) ? "bg-[rgba(var(--accent-rgb),0.15)] text-[var(--accent)] border border-[rgba(var(--accent-rgb),0.3)]" : "text-[#CBD5E1] hover:bg-[#1E293B] hover:text-white border border-transparent"}`}
                     >
                       <Settings2 size={16} /> Management{" "}
                       <ChevronDown
@@ -564,10 +587,7 @@ function ShellInner({
                     {adminMenuOpen && (
                       <div className="absolute left-0 mt-2 w-56 rounded-xl border border-[#334155] bg-[#1E293B] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150 z-50">
                         <div className="p-2 space-y-1">
-                          {[
-                            { href: "/admin/users", label: "Users", icon: Users },
-                            ...MANAGEMENT_NAV,
-                          ].map((link) => {
+                          {adminDropdownLinks.map((link) => {
                             const Icon = link.icon;
                             const active = isActive(link.href);
                             return (
@@ -955,12 +975,12 @@ function ShellInner({
                 </div>
               )}
 
-              {isAdminRole && (
+              {isAdminRole && adminDropdownLinks.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-[#334155]">
                   <p className="px-4 text-[10px] font-bold uppercase tracking-wider text-[#64748B] mb-2 flex items-center gap-2">
                     <Settings2 size={12} /> Management
                   </p>
-                  {MANAGEMENT_NAV.map((link) => {
+                  {adminDropdownLinks.map((link) => {
                     const Icon = link.icon;
                     const active = isActive(link.href);
                     return (

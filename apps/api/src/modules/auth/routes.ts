@@ -60,23 +60,100 @@ const forgotPasswordLimiter = rateLimit({
   message: { error: { code: "rate_limited", message: "Too many attempts. Try again later." } },
 });
 
+// Rate limiter for 2FA attempts
+const twoFactorLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: { code: "rate_limited", message: "Too many 2FA attempts. Try again later." } },
+});
+
 // ── Settings-aware helpers ──────────────────────────────────
 
 type SystemSettings = Awaited<ReturnType<typeof getSystemSettings>>;
 
-/** Resolve session TTL in milliseconds from settings, falling back to env. */
 function sessionTtlMs(settings: SystemSettings): number {
   const minutes = settings?.sessionTimeout ?? env.SESSION_TTL_HOURS * 60;
   return minutes * 60_000;
 }
 
-/** Extract the role-specific permission map from raw settings JSON. */
+const DEFAULT_MATRIX = {
+  DEAN: {
+    "/board": true,
+    "/my-tasks": true,
+    "/delegations": true,
+    "/review": true,
+    "/dashboard": true,
+    "/reports": true,
+    "/admin/users": true,
+    "/admin/offices": true,
+    "/admin/categories": true,
+    "/admin/audit": true,
+    "/support": true,
+  },
+  DEPUTY: {
+    "/board": true,
+    "/my-tasks": true,
+    "/delegations": true,
+    "/review": true,
+    "/dashboard": true,
+    "/reports": true,
+    "/admin/users": true,
+    "/admin/offices": true,
+    "/admin/categories": true,
+    "/admin/audit": true,
+    "/support": true,
+  },
+  FACULTY_COORDINATOR: {
+    "/board": true,
+    "/my-tasks": true,
+    "/delegations": true,
+    "/review": true,
+    "/dashboard": true,
+    "/reports": false,
+    "/admin/users": false,
+    "/admin/offices": false,
+    "/admin/categories": false,
+    "/admin/audit": false,
+    "/support": true,
+  },
+  LABS_COORDINATOR: {
+    "/board": true,
+    "/my-tasks": true,
+    "/delegations": true,
+    "/review": true,
+    "/dashboard": true,
+    "/reports": false,
+    "/admin/users": false,
+    "/admin/offices": false,
+    "/admin/categories": false,
+    "/admin/audit": false,
+    "/support": true,
+  },
+  LAB_TECHNICIAN: {
+    "/board": true,
+    "/my-tasks": true,
+    "/delegations": false,
+    "/review": false,
+    "/dashboard": false,
+    "/reports": false,
+    "/admin/users": false,
+    "/admin/offices": false,
+    "/admin/categories": false,
+    "/admin/audit": false,
+    "/support": true,
+  },
+};
+
 function permissionMapFor(settings: SystemSettings, role: string): Record<string, boolean> {
-  const all = (settings?.pagePermissions as Record<string, Record<string, boolean>> | null) || {};
-  return all[role] || {};
+  const dbPermissions =
+    (settings?.pagePermissions as Record<string, Record<string, boolean>> | null) || {};
+  const dbRolePerms = dbPermissions[role] || {};
+  const defaultRolePerms = DEFAULT_MATRIX[role as keyof typeof DEFAULT_MATRIX] || {};
+  return { ...defaultRolePerms, ...dbRolePerms };
 }
 
-/** Consistent branding payload across all auth responses. */
 function brandingOf(settings: SystemSettings) {
   return {
     logoUrl: settings?.logoUrl ?? null,
@@ -84,21 +161,17 @@ function brandingOf(settings: SystemSettings) {
   };
 }
 
-// ── Lockout policy ──────────────────────────────────────────
-
 function lockoutMinutesFor(attempts: number, role: string, threshold: number): number {
   if (attempts < threshold) return 0;
-
   const isLeadershipRole = role === "DEAN" || role === "DEPUTY" || role === "ADMINISTRATOR";
   if (isLeadershipRole) return 5;
-
   if (attempts === threshold) return 5;
   if (attempts === threshold + 1) return 15;
   if (attempts === threshold + 2) return 60;
   return 24 * 60;
 }
 
-// ── LOGIN ───────────────────────────────────────────────────
+// ── LOGIN (Enumeration Safe) ────────────────────────────────
 
 authRouter.post(
   "/login",
@@ -108,7 +181,12 @@ authRouter.post(
     const settings = await getSystemSettings();
 
     const user = await prisma.user.findUnique({ where: { email: input.email } });
+
+    // Dummy hash to equalize timing for unknown users
+    const dummyHash = "$argon2id$v=19$m=65536,t=3,p=4$dummyhashdummyhashdummyhash";
+
     if (!user || !user.passwordHash) {
+      await verifyPassword(dummyHash, input.password); // Waste time to prevent timing attacks
       await writeAudit({ action: "auth.login_failed", meta: { email: input.email }, req });
       logSecurityEvent("LOGIN_FAILED", {
         email: input.email,
@@ -118,6 +196,47 @@ authRouter.post(
       });
       throw new HttpError(401, "Invalid email or password", "invalid_credentials");
     }
+
+    const ok = await verifyPassword(user.passwordHash, input.password);
+
+    // Check password BEFORE active/locked status
+    if (!ok) {
+      const newFailedCount = user.failedLoginCount + 1;
+      const threshold = settings?.maxLoginAttempts ?? env.LOGIN_MAX_ATTEMPTS;
+      const lockoutMinutes = lockoutMinutesFor(newFailedCount, user.role, threshold);
+      const lockedUntil =
+        lockoutMinutes > 0 ? new Date(Date.now() + lockoutMinutes * 60_000) : null;
+
+      if (lockoutMinutes > 0) {
+        logger.warn(
+          { email: user.email, ip: req.ip, attempts: newFailedCount, lockoutMinutes },
+          "SECURITY ALERT: account locked after repeated failures",
+        );
+      }
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginCount: newFailedCount, lockedUntil },
+      });
+      await writeAudit({
+        actorId: user.id,
+        action: "auth.login_failed",
+        entityType: "User",
+        entityId: user.id,
+        req,
+      });
+      logSecurityEvent("LOGIN_FAILED", {
+        userId: user.id,
+        email: user.email,
+        ip: req.ip,
+        attempts: newFailedCount,
+        lockoutMinutes,
+      });
+
+      throw new HttpError(401, "Invalid email or password", "invalid_credentials");
+    }
+
+    // Now check active/locked status
     if (!user.active) {
       logSecurityEvent("LOGIN_FAILED", {
         userId: user.id,
@@ -141,46 +260,6 @@ authRouter.post(
       throw new HttpError(403, "Account locked. Try again later.", "account_locked");
     }
 
-    const ok = await verifyPassword(user.passwordHash, input.password);
-
-    if (!ok) {
-      const newFailedCount = user.failedLoginCount + 1;
-      const threshold = settings?.maxLoginAttempts ?? env.LOGIN_MAX_ATTEMPTS;
-      const lockoutMinutes = lockoutMinutesFor(newFailedCount, user.role, threshold);
-      const lockedUntil =
-        lockoutMinutes > 0 ? new Date(Date.now() + lockoutMinutes * 60_000) : null;
-
-      if (lockoutMinutes > 0) {
-        logger.warn(
-          { email: user.email, ip: req.ip, attempts: newFailedCount, lockoutMinutes },
-          "SECURITY ALERT: account locked after repeated failures",
-        );
-      }
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { failedLoginCount: newFailedCount, lockedUntil },
-      });
-
-      await writeAudit({
-        actorId: user.id,
-        action: "auth.login_failed",
-        entityType: "User",
-        entityId: user.id,
-        req,
-      });
-
-      logSecurityEvent("LOGIN_FAILED", {
-        userId: user.id,
-        email: user.email,
-        ip: req.ip,
-        attempts: newFailedCount,
-        lockoutMinutes,
-      });
-
-      throw new HttpError(401, "Invalid email or password", "invalid_credentials");
-    }
-
     if (user.twoFactorEnabled) {
       const tempToken = generateToken();
       const expiresAt = new Date(Date.now() + 5 * 60_000);
@@ -189,12 +268,7 @@ authRouter.post(
         data: { userId: user.id, tokenHash: hashToken(tempToken), expiresAt },
       });
 
-      return res.json({
-        data: {
-          requires2FA: true,
-          tempToken,
-        },
-      });
+      return res.json({ data: { requires2FA: true, tempToken } });
     }
 
     await prisma.user.update({
@@ -224,7 +298,6 @@ authRouter.post(
       entityId: user.id,
       req,
     });
-
     logSecurityEvent("LOGIN_SUCCESS", {
       userId: user.id,
       email: user.email,
@@ -262,10 +335,7 @@ authRouter.post(
     if (token) {
       const session = await prisma.session.findUnique({ where: { tokenHash: hashToken(token) } });
       if (session && !session.revokedAt) {
-        await prisma.session.update({
-          where: { id: session.id },
-          data: { revokedAt: new Date() },
-        });
+        await prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
         await writeAudit({
           actorId: session.userId,
           action: "auth.logout",
@@ -298,9 +368,8 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const input = changePasswordSchema.parse(req.body);
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-    if (!user || !user.passwordHash) {
+    if (!user || !user.passwordHash)
       throw new HttpError(400, "No password set on this account", "invalid_request");
-    }
 
     const ok = await verifyPassword(user.passwordHash, input.currentPassword);
     if (!ok) {
@@ -320,11 +389,7 @@ authRouter.post(
     await prisma.$transaction([
       prisma.user.update({
         where: { id: user.id },
-        data: {
-          passwordHash: newHash,
-          passwordChangedAt: new Date(),
-          mustChangePassword: false,
-        },
+        data: { passwordHash: newHash, passwordChangedAt: new Date(), mustChangePassword: false },
       }),
       prisma.session.updateMany({
         where: {
@@ -343,11 +408,7 @@ authRouter.post(
       entityId: user.id,
       req,
     });
-    logSecurityEvent("PASSWORD_CHANGED", {
-      userId: user.id,
-      email: user.email,
-      ip: req.ip,
-    });
+    logSecurityEvent("PASSWORD_CHANGED", { userId: user.id, email: user.email, ip: req.ip });
 
     res.status(204).end();
   }),
@@ -428,10 +489,7 @@ authRouter.post(
           lockedUntil: null,
         },
       }),
-      prisma.passwordReset.update({
-        where: { id: reset.id },
-        data: { usedAt: new Date() },
-      }),
+      prisma.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } }),
       prisma.session.updateMany({
         where: { userId: reset.userId, revokedAt: null },
         data: { revokedAt: new Date() },
@@ -445,10 +503,7 @@ authRouter.post(
       entityId: reset.userId,
       req,
     });
-    logSecurityEvent("PASSWORD_RESET_COMPLETED", {
-      userId: reset.userId,
-      ip: req.ip,
-    });
+    logSecurityEvent("PASSWORD_RESET_COMPLETED", { userId: reset.userId, ip: req.ip });
 
     res.status(204).end();
   }),
@@ -476,9 +531,7 @@ authRouter.post(
     const input = acceptInviteSchema.parse(req.body);
     const settings = await getSystemSettings();
 
-    const invite = await prisma.invite.findUnique({
-      where: { tokenHash: hashToken(input.token) },
-    });
+    const invite = await prisma.invite.findUnique({ where: { tokenHash: hashToken(input.token) } });
     if (!invite) throw new HttpError(400, "Invite not found", "invalid_invite");
     if (invite.acceptedAt) throw new HttpError(400, "Invite already used", "invalid_invite");
     if (invite.revokedAt) throw new HttpError(400, "Invite revoked", "invalid_invite");
@@ -510,10 +563,7 @@ authRouter.post(
           lockedUntil: null,
         },
       });
-      await tx.invite.update({
-        where: { id: invite.id },
-        data: { acceptedAt: new Date() },
-      });
+      await tx.invite.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } });
       return created;
     });
 
@@ -537,12 +587,7 @@ authRouter.post(
       entityId: user.id,
       req,
     });
-
-    logSecurityEvent("INVITE_ACCEPTED", {
-      userId: user.id,
-      email: user.email,
-      ip: req.ip,
-    });
+    logSecurityEvent("INVITE_ACCEPTED", { userId: user.id, email: user.email, ip: req.ip });
 
     const csrfToken = randomBytes(32).toString("hex");
     setSessionCookie(res, token, expiresAt);
@@ -638,23 +683,18 @@ authRouter.post(
   requireAuth,
   asyncHandler(async (req, res) => {
     const actor = req.user!;
-
-    if (actor.role !== "ADMINISTRATOR" && actor.role !== "DEAN") {
+    if (actor.role !== "ADMINISTRATOR" && actor.role !== "DEAN")
       throw new HttpError(403, "Only administrators and deans can impersonate users", "forbidden");
-    }
 
     const targetId = req.params.userId;
-    if (targetId === actor.id) {
+    if (targetId === actor.id)
       throw new HttpError(400, "You cannot impersonate yourself", "invalid_request");
-    }
 
     const target = await prisma.user.findUnique({ where: { id: targetId } });
     if (!target) throw new HttpError(404, "User not found", "not_found");
     if (!target.active) throw new HttpError(400, "Target user is deactivated", "invalid_request");
-
-    if (target.role === "ADMINISTRATOR" || target.role === "DEAN") {
+    if (target.role === "ADMINISTRATOR" || target.role === "DEAN")
       throw new HttpError(403, "You cannot impersonate another administrator or dean", "forbidden");
-    }
 
     const currentToken = req.cookies?.[SESSION_COOKIE];
     if (!currentToken) throw new HttpError(401, "No session", "unauthenticated");
@@ -662,16 +702,14 @@ authRouter.post(
     const currentSession = await prisma.session.findUnique({
       where: { tokenHash: hashToken(currentToken) },
     });
-    if (!currentSession || currentSession.revokedAt || currentSession.expiresAt < new Date()) {
+    if (!currentSession || currentSession.revokedAt || currentSession.expiresAt < new Date())
       throw new HttpError(401, "Session expired", "unauthenticated");
-    }
-    if (currentSession.impersonatedById) {
+    if (currentSession.impersonatedById)
       throw new HttpError(
         400,
         "You are already impersonating. Return to your admin session first.",
         "invalid_request",
       );
-    }
 
     const newToken = generateToken();
     const newExpiresAt = new Date(Date.now() + IMPERSONATION_TTL_MS);
@@ -714,11 +752,7 @@ authRouter.post(
       ip: req.ip,
     });
 
-    res.json({
-      data: {
-        target: { id: target.id, fullName: target.fullName, role: target.role },
-      },
-    });
+    res.json({ data: { target: { id: target.id, fullName: target.fullName, role: target.role } } });
   }),
 );
 
@@ -735,28 +769,23 @@ authRouter.post(
       where: { tokenHash: hashToken(currentToken) },
       include: { user: true },
     });
-
-    if (!currentSession || !currentSession.impersonatedById) {
+    if (!currentSession || !currentSession.impersonatedById)
       throw new HttpError(400, "You are not currently impersonating", "invalid_request");
-    }
 
     const adminToken = req.cookies?.[IMPERSONATOR_COOKIE];
-    if (!adminToken) {
+    if (!adminToken)
       throw new HttpError(
         400,
         "Impersonator session not found. Please log in again.",
         "unauthenticated",
       );
-    }
 
     const adminSession = await prisma.session.findUnique({
       where: { tokenHash: hashToken(adminToken) },
       include: { user: true },
     });
-
-    if (!adminSession || adminSession.revokedAt || adminSession.expiresAt < new Date()) {
+    if (!adminSession || adminSession.revokedAt || adminSession.expiresAt < new Date())
       throw new HttpError(401, "Admin session expired. Please log in again.", "unauthenticated");
-    }
 
     await prisma.session.update({
       where: { id: currentSession.id },
@@ -807,30 +836,38 @@ authRouter.delete(
   requireAuth,
   asyncHandler(async (req, res) => {
     const session = await prisma.session.findUnique({ where: { id: req.params.id } });
-    if (!session || session.userId !== req.user!.id) {
+    if (!session || session.userId !== req.user!.id)
       throw new HttpError(404, "Session not found", "not_found");
-    }
-    await prisma.session.update({
-      where: { id: session.id },
-      data: { revokedAt: new Date() },
-    });
-    logSecurityEvent("SESSION_REVOKED", {
-      userId: req.user!.id,
-      targetId: session.id,
-      ip: req.ip,
-    });
+    await prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
+    logSecurityEvent("SESSION_REVOKED", { userId: req.user!.id, targetId: session.id, ip: req.ip });
     res.status(204).end();
   }),
 );
 
-// ── 2FA SETUP (unchanged) ───────────────────────────────────
+// ── 2FA SETUP (Requires Password) ───────────────────────────
 
 authRouter.post(
   "/2fa/setup",
   requireAuth,
+  twoFactorLimiter,
   asyncHandler(async (req, res) => {
+    const { password } = req.body;
+    if (!password) throw new HttpError(400, "Password required to set up 2FA", "invalid_request");
+
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-    if (!user) throw new HttpError(404, "User not found", "not_found");
+    if (!user || !user.passwordHash)
+      throw new HttpError(400, "User not found or no password set", "not_found");
+
+    const isValid = await verifyPassword(user.passwordHash, password);
+    if (!isValid) {
+      logSecurityEvent("LOGIN_FAILED", {
+        userId: user.id,
+        email: user.email,
+        ip: req.ip,
+        reason: "2fa_setup_bad_password",
+      });
+      throw new HttpError(401, "Incorrect password", "invalid_credentials");
+    }
 
     const secret = authenticator.generateSecret();
     const otpauth = authenticator.keyuri(user.email, "HAWLHAYE", secret);
@@ -855,9 +892,8 @@ authRouter.post(
     if (!token) throw new HttpError(400, "Token required", "invalid_request");
 
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-    if (!user || !user.twoFactorSecret) {
+    if (!user || !user.twoFactorSecret)
       throw new HttpError(400, "2FA not set up", "invalid_request");
-    }
 
     const isValid = authenticator.verify({ token, secret: user.twoFactorSecret });
     if (!isValid) throw new HttpError(400, "Invalid code", "invalid_token");
@@ -867,7 +903,6 @@ authRouter.post(
       data: { twoFactorEnabled: true, twoFAExemptUntil: null },
     });
 
-    // Generate 10 fresh backup codes and return them to the user (shown once)
     const backupCodes = await generateBackupCodes(user.id);
 
     await writeAudit({
@@ -877,7 +912,6 @@ authRouter.post(
       entityId: user.id,
       req,
     });
-
     logSecurityEvent("2FA_ENABLED", { userId: user.id, ip: req.ip });
 
     res.json({ data: { success: true, backupCodes } });
@@ -894,9 +928,7 @@ authRouter.post(
     if (!password) throw new HttpError(400, "Password required", "invalid_request");
 
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-    if (!user || !user.passwordHash) {
-      throw new HttpError(400, "User not found", "not_found");
-    }
+    if (!user || !user.passwordHash) throw new HttpError(400, "User not found", "not_found");
 
     const isValid = await verifyPassword(user.passwordHash, password);
     if (!isValid) throw new HttpError(401, "Incorrect password", "invalid_credentials");
@@ -916,7 +948,6 @@ authRouter.post(
       entityId: user.id,
       req,
     });
-
     logSecurityEvent("2FA_DISABLED", { userId: user.id, ip: req.ip });
 
     res.json({ data: { success: true } });
@@ -942,12 +973,8 @@ authRouter.post(
     if (!password) throw new HttpError(400, "Password required", "invalid_request");
 
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
-    if (!user || !user.passwordHash) {
-      throw new HttpError(400, "User not found", "not_found");
-    }
-    if (!user.twoFactorEnabled) {
-      throw new HttpError(400, "2FA is not enabled", "invalid_request");
-    }
+    if (!user || !user.passwordHash) throw new HttpError(400, "User not found", "not_found");
+    if (!user.twoFactorEnabled) throw new HttpError(400, "2FA is not enabled", "invalid_request");
 
     const isValid = await verifyPassword(user.passwordHash, password);
     if (!isValid) throw new HttpError(401, "Incorrect password", "invalid_credentials");
@@ -961,20 +988,17 @@ authRouter.post(
       entityId: user.id,
       req,
     });
-
-    logSecurityEvent("2FA_BACKUP_CODES_REGENERATED", {
-      userId: user.id,
-      ip: req.ip,
-    });
+    logSecurityEvent("2FA_BACKUP_CODES_REGENERATED", { userId: user.id, ip: req.ip });
 
     res.json({ data: { backupCodes: codes } });
   }),
 );
 
-// ── 2FA AUTHENTICATE ────────────────────────────────────────
+// ── 2FA AUTHENTICATE (Rate Limited) ─────────────────────────
 
 authRouter.post(
   "/2fa/authenticate",
+  twoFactorLimiter,
   asyncHandler(async (req, res) => {
     const { code, tempToken, isBackupCode } = req.body;
     if (!code || !tempToken) throw new HttpError(400, "Missing fields", "invalid_request");
@@ -997,10 +1021,7 @@ authRouter.post(
       isValid = await consumeBackupCode(challenge.user.id, code);
       usedBackupCode = isValid;
     } else {
-      isValid = authenticator.verify({
-        token: code,
-        secret: challenge.user.twoFactorSecret!,
-      });
+      isValid = authenticator.verify({ token: code, secret: challenge.user.twoFactorSecret! });
     }
 
     if (!isValid) throw new HttpError(400, "Invalid code", "invalid_token");
@@ -1027,7 +1048,6 @@ authRouter.post(
       entityId: challenge.user.id,
       req,
     });
-
     logSecurityEvent("LOGIN_SUCCESS", {
       userId: challenge.user.id,
       email: challenge.user.email,

@@ -841,4 +841,34 @@ export const ar: Record<TranslationKey, string> = {
   "settings.system.maintenance_mode": "وضع الصيانة",
   "settings.system.maintenance_mode_desc":
     "يحظر جميع الوصول غير الإداري إلى المنصة. استخدمه فقط أثناء الترقيات الحرجة.",
+
+  // ── Admin Billing ─────────────────────────────────────────
+  "nav.billing": "الفوترة",
+  "admin.billing.title": "الفوترة والاستخدام",
+  "admin.billing.subtitle": "خطتك والمقاعد والاستخدام المباشر من هذا النشر.",
+  "admin.billing.stats.plan": "الخطة الحالية",
+  "admin.billing.stats.users": "المستخدمون",
+  "admin.billing.stats.offices": "المكاتب",
+  "admin.billing.stats.categories": "الفئات",
+  "admin.billing.plan.selfHosted": "استضافة ذاتية",
+  "admin.billing.plan.unlimited": "غير محدود",
+  "admin.billing.plan.never": "أبدًا",
+  "admin.billing.currentPlan.title": "خطة الاستضافة الذاتية",
+  "admin.billing.currentPlan.desc":
+    "مستضاف على البنية التحتية الخاصة بمؤسستك. لا توجد رسوم لكل مقعد.",
+  "admin.billing.currentPlan.active": "نشط",
+  "admin.billing.features.seats": "مستخدمون ودعوات غير محدودة",
+  "admin.billing.features.storage": "مرفقات المهام والشعارات غير محدودة",
+  "admin.billing.features.support": "دعم مباشر من فريق HAWL",
+  "admin.billing.features.dataOwnership": "ملكية كاملة للبيانات — قاعدة بياناتك، نسخك الاحتياطية",
+  "admin.billing.comingSoon.title": "قريبًا",
+  "admin.billing.comingSoon.desc": "ميزات SaaS المستضافة قيد التطوير حاليًا.",
+  "admin.billing.comingSoon.plans": "خطط متعددة المستأجرين مع فاتورة لكل مقعد",
+  "admin.billing.comingSoon.invoices": "سجل الفواتير وإيصالات PDF القابلة للتنزيل",
+  "admin.billing.comingSoon.payments": "طرق الدفع عبر Stripe أو بوابة الأموال المحمولة المحلية",
+  "admin.billing.contact.title": "هل تحتاج إلى أسعار المؤسسات؟",
+  "admin.billing.contact.desc":
+    "تحدث معنا حول النشر المستضاف، أو التثبيت المحلي، أو اتفاقيات SLA مخصصة.",
+  "admin.billing.contact.cta": "اتصل بالمبيعات",
+  "admin.billing.usage.error": "فشل تحميل الاستخدام",
 };

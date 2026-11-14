@@ -16,3 +16,7 @@ infra/.env
 results.sarif
 results.sarif
 sbom.json
+
+# Local DB dumps — never commit
+clean_data.sql
+local_data.sql

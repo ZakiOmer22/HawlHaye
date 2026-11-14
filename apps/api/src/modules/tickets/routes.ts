@@ -1,3 +1,4 @@
+// apps/api/src/modules/tickets/routes.ts
 import { Router } from "express";
 import { z } from "zod";
 import path from "node:path";
@@ -9,7 +10,8 @@ import { asyncHandler } from "../../middleware/async";
 import { HttpError } from "../../middleware/errors";
 import { uploadAttachment, validateFileMagicBytes } from "../../middleware/upload";
 
-const UPLOAD_DIR = path.join(process.cwd(), "uploads");
+// Fixed: Save to public/uploads so they are served by express.static("public")
+const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const MIME_TO_EXT = new Map<string, string>([
@@ -43,7 +45,7 @@ const isAdmin = (role: string) => ADMIN_ROLES.has(role);
 export const ticketsRouter = Router();
 ticketsRouter.use(requireAuth);
 
-// ── GET / — List all tickets (with support for search/filtering if needed) ──
+// ── GET / — List all tickets ──
 ticketsRouter.get(
   "/",
   asyncHandler(async (req, res) => {
@@ -54,7 +56,7 @@ ticketsRouter.get(
       orderBy: { updatedAt: "desc" },
       include: {
         createdBy: { select: { id: true, fullName: true, role: true } },
-        replies: { select: { id: true } }, // Just count for the list view
+        replies: { select: { id: true } },
       },
     });
 
@@ -62,7 +64,7 @@ ticketsRouter.get(
   }),
 );
 
-// ── GET /:id — Fetch a single ticket (FIXES YOUR 404) ──
+// ── GET /:id — Fetch a single ticket ──
 ticketsRouter.get(
   "/:id",
   asyncHandler(async (req, res) => {
