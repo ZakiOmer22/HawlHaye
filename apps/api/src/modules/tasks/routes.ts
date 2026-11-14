@@ -7,7 +7,7 @@ import crypto from "crypto";
 import fs from "fs";
 import xss from "xss";
 import rateLimit from "express-rate-limit";
-import { fromBuffer  } from "file-type";
+import { fromBuffer } from "file-type";
 import { createTaskSchema, assignTaskSchema, transitionSchema } from "@hawl/shared";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler } from "../../middleware/async";

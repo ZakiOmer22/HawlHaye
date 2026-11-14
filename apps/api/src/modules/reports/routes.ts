@@ -271,10 +271,14 @@ reportsRouter.get(
   }),
 );
 
-reportsRouter.get("/uptime", requireRole("ADMINISTRATOR", "DEAN", "DEPUTY"), async (_req, res, next) => {
-  try {
-    res.json({ data: await getUptimeReport() });
-  } catch (e) {
-    next(e);
-  }
-});
+reportsRouter.get(
+  "/uptime",
+  requireRole("ADMINISTRATOR", "DEAN", "DEPUTY"),
+  async (_req, res, next) => {
+    try {
+      res.json({ data: await getUptimeReport() });
+    } catch (e) {
+      next(e);
+    }
+  },
+);

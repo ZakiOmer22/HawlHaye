@@ -80,7 +80,8 @@ async function fetchFromApi(apiKey: string): Promise<{
     const avg =
       toNumberOrNull(m.average_response_time) ??
       (responseTimes.length
-        ? responseTimes.reduce((s, r) => s + (toNumberOrNull(r.value) ?? 0), 0) / responseTimes.length
+        ? responseTimes.reduce((s, r) => s + (toNumberOrNull(r.value) ?? 0), 0) /
+          responseTimes.length
         : null);
 
     return {
@@ -100,7 +101,9 @@ async function fetchFromApi(apiKey: string): Promise<{
   return {
     monitors,
     overall: {
-      uptime30d: monthValues.length ? monthValues.reduce((s, v) => s + v, 0) / monthValues.length : null,
+      uptime30d: monthValues.length
+        ? monthValues.reduce((s, v) => s + v, 0) / monthValues.length
+        : null,
       monitorsDown: monitors.filter((m) => m.status === "down").length,
       totalMonitors: monitors.length,
       avgResponseMs: responseValues.length
@@ -121,28 +124,58 @@ export async function getUptimeReport(): Promise<UptimeReport> {
   if (apiKey) {
     try {
       const { overall, monitors } = await fetchFromApi(apiKey);
-      const report: UptimeReport = { mode: "data", statusPageUrl, overall, monitors, generatedAt: now };
+      const report: UptimeReport = {
+        mode: "data",
+        statusPageUrl,
+        overall,
+        monitors,
+        generatedAt: now,
+      };
       cache = { at: Date.now(), data: report };
       return report;
     } catch {
       if (statusPageUrl) {
-        const report: UptimeReport = { mode: "link", statusPageUrl, overall: null, monitors: [], generatedAt: now };
+        const report: UptimeReport = {
+          mode: "link",
+          statusPageUrl,
+          overall: null,
+          monitors: [],
+          generatedAt: now,
+        };
         cache = { at: Date.now(), data: report };
         return report;
       }
-      const report: UptimeReport = { mode: "none", statusPageUrl: null, overall: null, monitors: [], generatedAt: now };
+      const report: UptimeReport = {
+        mode: "none",
+        statusPageUrl: null,
+        overall: null,
+        monitors: [],
+        generatedAt: now,
+      };
       cache = { at: Date.now(), data: report };
       return report;
     }
   }
 
   if (statusPageUrl) {
-    const report: UptimeReport = { mode: "link", statusPageUrl, overall: null, monitors: [], generatedAt: now };
+    const report: UptimeReport = {
+      mode: "link",
+      statusPageUrl,
+      overall: null,
+      monitors: [],
+      generatedAt: now,
+    };
     cache = { at: Date.now(), data: report };
     return report;
   }
 
-  const report: UptimeReport = { mode: "none", statusPageUrl: null, overall: null, monitors: [], generatedAt: now };
+  const report: UptimeReport = {
+    mode: "none",
+    statusPageUrl: null,
+    overall: null,
+    monitors: [],
+    generatedAt: now,
+  };
   cache = { at: Date.now(), data: report };
   return report;
 }

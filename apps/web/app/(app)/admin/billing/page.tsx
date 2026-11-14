@@ -113,9 +113,7 @@ export default function AdminBillingPage() {
               {t("admin.billing.stats.categories")}
             </p>
           </div>
-          <p className="text-xl font-black text-violet-400">
-            {stat(usage?.categories ?? null)}
-          </p>
+          <p className="text-xl font-black text-violet-400">{stat(usage?.categories ?? null)}</p>
         </div>
       </section>
 
@@ -128,9 +126,7 @@ export default function AdminBillingPage() {
             <h2 className="text-lg font-black text-white">
               {t("admin.billing.currentPlan.title")}
             </h2>
-            <p className="mt-1 text-sm text-[#94A3B8]">
-              {t("admin.billing.currentPlan.desc")}
-            </p>
+            <p className="mt-1 text-sm text-[#94A3B8]">{t("admin.billing.currentPlan.desc")}</p>
           </div>
           <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20 shrink-0">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
