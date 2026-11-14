@@ -3,6 +3,12 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { MaintenanceProvider } from "@/components/layout/MaintenanceProvider";
 
+// Force every route under this layout to be server-rendered per request.
+// Required for CSP nonce injection: static pages are built once and cannot
+// carry a per-request nonce, which causes 'strict-dynamic' to block all
+// inline scripts and leaves the app non-interactive.
+export const dynamic = "force-dynamic";
+
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-jakarta",
@@ -49,7 +55,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <body className={`${jakarta.variable} font-sans antialiased min-h-screen`}>
-        {/* 🚀 USE THE PROVIDER HERE */}
         <MaintenanceProvider>{children}</MaintenanceProvider>
       </body>
     </html>
