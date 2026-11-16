@@ -12,6 +12,7 @@ import {
   X,
   Copy,
   Download,
+  Lock,
 } from "lucide-react";
 import { startRegistration } from "@simplewebauthn/browser";
 import { ActiveSessionsCard } from "@/components/layout/ActiveSessionsCard";
@@ -29,8 +30,22 @@ export default function SecuritySettingsPage() {
   const [freshCodes, setFreshCodes] = useState<string[] | null>(null);
   const [codesCopied, setCodesCopied] = useState(false);
 
+  // Modals state
   const [showDisableModal, setShowDisableModal] = useState(false);
   const [disablePassword, setDisablePassword] = useState("");
+
+  const [passwordModal, setPasswordModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    onConfirm: (password: string) => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: "",
+    description: "",
+    onConfirm: () => {},
+  });
+  const [modalPassword, setModalPassword] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -54,19 +69,32 @@ export default function SecuritySettingsPage() {
     void loadStatus();
   }, []);
 
-  async function startSetup() {
-    setActionBusy(true);
-    setError(null);
-    try {
-      const res = await api<{ data: { secret: string; qrCodeUrl: string } }>("/auth/2fa/setup", {
-        method: "POST",
-      });
-      setSetupData(res.data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to setup 2FA");
-    } finally {
-      setActionBusy(false);
-    }
+  // ── Handlers ─────────────────────────────────────────────────
+
+  function startSetup() {
+    setModalPassword("");
+    setPasswordModal({
+      isOpen: true,
+      title: "Enable Two-Factor Authentication",
+      description: "Please confirm your password to secure your 2FA setup.",
+      onConfirm: async (password) => {
+        setActionBusy(true);
+        setError(null);
+        try {
+          const res = await api<{ data: { secret: string; qrCodeUrl: string } }>("/auth/2fa/setup", {
+            method: "POST",
+            body: JSON.stringify({ password }),
+          });
+          setSetupData(res.data);
+          setPasswordModal((prev) => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          setError(err instanceof ApiError ? err.message : "Failed to setup 2FA");
+          setPasswordModal((prev) => ({ ...prev, isOpen: false }));
+        } finally {
+          setActionBusy(false);
+        }
+      },
+    });
   }
 
   async function verifySetup() {
@@ -113,51 +141,78 @@ export default function SecuritySettingsPage() {
     }
   }
 
-  async function addPasskey() {
-    setActionBusy(true);
-    setError(null);
-    try {
-      const optionsRes = await api<{ data: Record<string, unknown> }>(
-        "/auth/passkeys/register/options",
-        { cache: "no-store" }, // ← ADD THIS LINE
-      );
+  function addPasskey() {
+    setModalPassword("");
+    setPasswordModal({
+      isOpen: true,
+      title: "Add Passkey",
+      description: "Please confirm your password to register a new biometric login.",
+      onConfirm: async (password) => {
+        setActionBusy(true);
+        setError(null);
+        try {
+          const optionsRes = await api<{ data: Record<string, unknown> }>(
+            "/auth/passkeys/register/options",
+            {
+              cache: "no-store",
+              headers: { "X-Confirm-Password": password }
+            },
+          );
 
-      const regResponse = await startRegistration({
-        optionsJSON: optionsRes.data as unknown as Parameters<
-          typeof startRegistration
-        >[0]["optionsJSON"],
-      });
+          const regResponse = await startRegistration({
+            optionsJSON: optionsRes.data as unknown as Parameters<
+              typeof startRegistration
+            >[0]["optionsJSON"],
+          });
 
-      await api("/auth/passkeys/register/verify", {
-        method: "POST",
-        body: JSON.stringify(regResponse),
-      });
+          await api("/auth/passkeys/register/verify", {
+            method: "POST",
+            body: JSON.stringify(regResponse),
+          });
 
-      setSuccessMsg("Passkey added successfully!");
-      const pkRes = await api<{ data: { id: string; createdAt: string }[] }>("/auth/passkeys");
-      setPasskeys(pkRes.data);
-    } catch (err) {
-      if (err instanceof Error && err.name === "NotAllowedError") {
-        setError("Passkey creation cancelled.");
-      } else {
-        setError(err instanceof ApiError ? err.message : "Failed to add passkey");
-      }
-    } finally {
-      setActionBusy(false);
-    }
+          setSuccessMsg("Passkey added successfully!");
+          const pkRes = await api<{ data: { id: string; createdAt: string }[] }>("/auth/passkeys");
+          setPasskeys(pkRes.data);
+          setPasswordModal((prev) => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          if (err instanceof Error && err.name === "NotAllowedError") {
+            setError("Passkey creation cancelled.");
+          } else {
+            setError(err instanceof ApiError ? err.message : "Failed to add passkey");
+          }
+          setPasswordModal((prev) => ({ ...prev, isOpen: false }));
+        } finally {
+          setActionBusy(false);
+        }
+      },
+    });
   }
 
-  async function deletePasskey(id: string) {
-    setActionBusy(true);
-    try {
-      await api(`/auth/passkeys/${id}`, { method: "DELETE" });
-      setPasskeys((prev) => prev.filter((p) => p.id !== id));
-      setSuccessMsg("Passkey removed.");
-    } catch {
-      setError("Failed to remove passkey");
-    } finally {
-      setActionBusy(false);
-    }
+  function deletePasskey(id: string) {
+    setModalPassword("");
+    setPasswordModal({
+      isOpen: true,
+      title: "Remove Passkey",
+      description: "Please confirm your password to permanently remove this passkey.",
+      onConfirm: async (password) => {
+        setActionBusy(true);
+        setError(null);
+        try {
+          await api(`/auth/passkeys/${id}`, {
+            method: "DELETE",
+            headers: { "X-Confirm-Password": password }
+          });
+          setPasskeys((prev) => prev.filter((p) => p.id !== id));
+          setSuccessMsg("Passkey removed.");
+          setPasswordModal((prev) => ({ ...prev, isOpen: false }));
+        } catch (err) {
+          setError(err instanceof ApiError ? err.message : "Failed to remove passkey");
+          setPasswordModal((prev) => ({ ...prev, isOpen: false }));
+        } finally {
+          setActionBusy(false);
+        }
+      },
+    });
   }
 
   async function copyFreshCodes() {
@@ -391,7 +446,57 @@ export default function SecuritySettingsPage() {
         <ActiveSessionsCard />
       </div>
 
-      {/* Disable 2FA Modal */}
+      {/* ── Confirm Password Modal (Unified for Passkey & 2FA) ── */}
+      {passwordModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setPasswordModal((prev) => ({ ...prev, isOpen: false }))}
+          />
+          <div className="relative w-full max-w-md rounded-3xl border border-[#334155] bg-[#1E293B] p-8 shadow-2xl">
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#e8bc69]/10 border border-[#e8bc69]/20">
+                <Lock className="h-8 w-8 text-[#e8bc69]" />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">{passwordModal.title}</h2>
+              <p className="text-sm text-[#94A3B8]">{passwordModal.description}</p>
+            </div>
+
+            <div className="space-y-4">
+              <input
+                type="password"
+                placeholder="Password (demo: 12345678)"
+                value={modalPassword}
+                onChange={(e) => setModalPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && modalPassword) {
+                    void passwordModal.onConfirm(modalPassword);
+                  }
+                }}
+                className="w-full rounded-xl border border-[#334155] bg-[#0F172A] py-3 px-4 text-sm text-white outline-none focus:border-[#e8bc69]"
+              />
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={() => setPasswordModal((prev) => ({ ...prev, isOpen: false }))}
+                  className="flex-1 rounded-xl border border-[#334155] bg-[#0F172A] py-2.5 text-sm font-bold text-white hover:bg-[#334155] transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void passwordModal.onConfirm(modalPassword)}
+                  disabled={!modalPassword || actionBusy}
+                  className="flex-1 flex justify-center items-center gap-2 rounded-xl bg-[#e8bc69] py-2.5 text-sm font-bold text-[#0F172A] hover:bg-[#f1cf8b] disabled:opacity-50 transition"
+                >
+                  {actionBusy ? <Loader2 size={16} className="animate-spin" /> : "Confirm"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Disable 2FA Modal ── */}
       {showDisableModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
@@ -413,7 +518,7 @@ export default function SecuritySettingsPage() {
             <div className="space-y-4">
               <input
                 type="password"
-                placeholder="Enter your current password"
+                placeholder="Password (demo: 12345678)"
                 value={disablePassword}
                 onChange={(e) => setDisablePassword(e.target.value)}
                 className="w-full rounded-xl border border-[#334155] bg-[#0F172A] py-3 px-4 text-sm text-white outline-none focus:border-red-400"
@@ -441,7 +546,7 @@ export default function SecuritySettingsPage() {
         </div>
       )}
 
-      {/* Fresh Backup Codes Modal (shown right after enabling 2FA) */}
+      {/* ── Fresh Backup Codes Modal ── */}
       {freshCodes && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" />

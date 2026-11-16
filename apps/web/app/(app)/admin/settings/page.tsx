@@ -34,6 +34,7 @@ import {
   Tag,
   ScrollText,
   Ticket,
+  Link as LinkIcon,
 } from "lucide-react";
 
 const PAGES = [
@@ -128,9 +129,25 @@ export default function GlobalSettingsPage() {
     setSuccess(false);
 
     try {
+      const payload = {
+        universityName: data.universityName,
+        supportEmail: data.supportEmail,
+        timezone: data.timezone,
+        logoUrl: data.logoUrl,
+        primaryColor: data.primaryColor,
+        maintenanceMode: data.maintenanceMode,
+        allowRegistration: data.allowRegistration,
+        emailNotifications: data.emailNotifications,
+        storageLimitMb: data.storageLimitMb,
+        enforce2FA: data.enforce2FA,
+        maxLoginAttempts: data.maxLoginAttempts,
+        sessionTimeout: data.sessionTimeout,
+        pagePermissions: data.pagePermissions,
+      };
+
       await api("/admin/settings", {
         method: "PUT",
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -152,14 +169,21 @@ export default function GlobalSettingsPage() {
       const formData = new FormData();
       formData.append("logo", file);
 
-      const res = await api<{ data: { logoUrl: string } }>("/admin/settings/logo", {
+      // USE NATIVE FETCH TO PREVENT JSON CONTENT-TYPE HEADER CONFLICT
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1"}/admin/settings/logo`, {
         method: "POST",
         body: formData,
+        credentials: "include", // send cookies
       });
 
-      setData((prev) => (prev ? { ...prev, logoUrl: res.data.logoUrl } : null));
+      if (!res.ok) {
+        throw new Error("Upload failed");
+      }
+
+      const json = await res.json();
+      setData((prev) => (prev ? { ...prev, logoUrl: json.data.logoUrl } : null));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to upload logo.");
+      setError(err instanceof Error ? err.message : "Failed to upload logo.");
     } finally {
       setUploadingLogo(false);
     }
@@ -289,37 +313,49 @@ export default function GlobalSettingsPage() {
                   <SectionHeader title="Branding" desc="Customize the look and feel of the app." />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormGroup label="App Logo" icon={ImageIcon}>
-                      <div className="flex items-center gap-4">
-                        <div className="h-16 w-16 rounded-xl border border-border bg-app flex items-center justify-center overflow-hidden shrink-0">
-                          {data.logoUrl ? (
-                            <img
-                              src={data.logoUrl}
-                              alt="Logo"
-                              className="h-full w-full object-contain p-1"
-                            />
-                          ) : (
-                            <ImageIcon className="text-muted" size={24} />
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <label
-                            className={`cursor-pointer inline-flex items-center gap-2 rounded-xl border border-border bg-app px-4 py-2.5 text-sm font-bold text-primary transition ${uploadingLogo ? "opacity-50" : "hover:bg-panel"}`}
-                          >
-                            {uploadingLogo ? (
-                              <Loader2 size={16} className="animate-spin" />
+                      <div className="flex flex-col gap-4">
+                        <div className="flex items-center gap-4">
+                          <div className="h-16 w-16 rounded-xl border border-border bg-app flex items-center justify-center overflow-hidden shrink-0">
+                            {data.logoUrl ? (
+                              <img
+                                src={data.logoUrl}
+                                alt="Logo"
+                                className="h-full w-full object-contain p-1"
+                              />
                             ) : (
-                              <Upload size={16} />
+                              <ImageIcon className="text-muted" size={24} />
                             )}
-                            <span>{uploadingLogo ? "Uploading..." : "Upload Image"}</span>
-                            <input
-                              type="file"
-                              accept="image/png, image/jpeg, image/svg+xml, image/webp"
-                              className="hidden"
-                              disabled={uploadingLogo}
-                              onChange={handleLogoUpload}
-                            />
-                          </label>
-                          <p className="text-[10px] text-muted mt-2">PNG, JPG or SVG. Max 2MB.</p>
+                          </div>
+                          <div className="flex-1">
+                            <label
+                              className={`cursor-pointer inline-flex items-center gap-2 rounded-xl border border-border bg-app px-4 py-2.5 text-sm font-bold text-primary transition ${uploadingLogo ? "opacity-50" : "hover:bg-panel"}`}
+                            >
+                              {uploadingLogo ? (
+                                <Loader2 size={16} className="animate-spin" />
+                              ) : (
+                                <Upload size={16} />
+                              )}
+                              <span>{uploadingLogo ? "Uploading..." : "Upload File"}</span>
+                              <input
+                                type="file"
+                                accept="image/png, image/jpeg, image/svg+xml, image/webp"
+                                className="hidden"
+                                disabled={uploadingLogo}
+                                onChange={handleLogoUpload}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                        {/* FALLBACK: PASTE URL */}
+                        <div className="relative">
+                          <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
+                          <input
+                            type="url"
+                            placeholder="Or paste an image URL (works on Render)"
+                            value={data.logoUrl || ""}
+                            onChange={(e) => setData({ ...data, logoUrl: e.target.value })}
+                            className="w-full rounded-xl border border-border bg-app py-2.5 pl-10 pr-4 text-sm text-primary outline-none focus:border-accent"
+                          />
                         </div>
                       </div>
                     </FormGroup>
