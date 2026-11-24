@@ -14,6 +14,7 @@ import { require2FAForHighRisk } from "../../middleware/require2FA";
 import { HttpError } from "../../middleware/errors";
 import { env } from "../../config/env";
 import { sendInviteEmail } from "../../lib/mailer";
+import { assignableUsersFor } from "../tasks/service";
 import { logger } from "../../lib/logger";
 
 export const usersRouter = Router();
@@ -26,6 +27,14 @@ const ROLES: [Role, ...Role[]] = [
   "ADMINISTRATOR",
   "LAB_TECHNICIAN",
 ];
+
+// Fix: Defined locally since it's missing from @hawl/shared
+const setHierarchySchema = z
+  .object({
+    supervisorId: z.string().nullable().optional(),
+    coordinatorIds: z.array(z.string()).optional(),
+  })
+  .strict();
 
 const acceptInviteSchema = z
   .object({
@@ -148,6 +157,77 @@ usersRouter.delete(
 // USERS list / by id
 // ────────────────────────────────────────────────────────────
 
+// People this user is allowed to hand tasks to (used by the Create / Assign task dialogs).
+// Must stay above "/:id" so "assignable" is not treated as a user id.
+usersRouter.get(
+  "/assignable",
+  asyncHandler(async (req, res) => {
+    const data = await assignableUsersFor(req.user!);
+    res.json({ data });
+  }),
+);
+
+// Reporting lines: who a Lab Technician reports to, and which coordinators an Administrator works for.
+usersRouter.patch(
+  "/:id/hierarchy",
+  requireRole("ADMINISTRATOR", "DEAN", "DEPUTY"),
+  asyncHandler(async (req, res) => {
+    const id = String(req.params.id);
+    const input = setHierarchySchema.parse(req.body);
+    const target = await prisma.user.findUnique({ where: { id } });
+    if (!target) throw new HttpError(404, "User not found", "not_found");
+
+    if (input.supervisorId !== undefined) {
+      if (input.supervisorId === id) {
+        throw new HttpError(400, "A user cannot supervise themselves", "invalid_request");
+      }
+      if (input.supervisorId) {
+        const sup = await prisma.user.findUnique({ where: { id: input.supervisorId } });
+        if (!sup || !sup.active) throw new HttpError(400, "Supervisor not valid", "invalid_request");
+      }
+    }
+    if (input.coordinatorIds) {
+      if (target.role !== "ADMINISTRATOR") {
+        throw new HttpError(400, "Only Administrators can be linked to coordinators", "invalid_request");
+      }
+      const coords = await prisma.user.findMany({
+        where: { id: { in: input.coordinatorIds }, active: true, role: { in: ["FACULTY_COORDINATOR", "LABS_COORDINATOR"] } },
+        select: { id: true },
+      });
+      if (coords.length !== new Set(input.coordinatorIds).size) {
+        throw new HttpError(400, "One or more coordinators are not valid", "invalid_request");
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (input.supervisorId !== undefined) {
+        await tx.user.update({ where: { id }, data: { supervisorId: input.supervisorId } });
+      }
+      if (input.coordinatorIds) {
+        await tx.administratorAssignment.deleteMany({ where: { administratorId: id } });
+        if (input.coordinatorIds.length) {
+          await tx.administratorAssignment.createMany({
+            data: [...new Set(input.coordinatorIds)].map((coordinatorId) => ({
+              coordinatorId,
+              administratorId: id,
+            })),
+          });
+        }
+      }
+    });
+
+    await writeAudit({
+      actorId: req.user!.id,
+      action: "user.hierarchy_changed",
+      entityType: "User",
+      entityId: id,
+      meta: { supervisorId: input.supervisorId, coordinatorIds: input.coordinatorIds },
+      req,
+    });
+    res.json({ ok: true });
+  }),
+);
+
 usersRouter.get(
   "/",
   requireRole("ADMINISTRATOR", "DEAN", "DEPUTY"),
@@ -162,6 +242,8 @@ usersRouter.get(
         fullName: true,
         role: true,
         officeId: true,
+        supervisorId: true,
+        coordinatorLinks: { select: { coordinatorId: true } },
         active: true,
         lastLoginAt: true,
         createdAt: true,

@@ -6,11 +6,13 @@ import { Menu, X } from "lucide-react";
 import { Logo } from "../ui/Logo";
 
 const NAV_ITEMS = [
+  { href: "#college", label: "College" },
+  { href: "#departments", label: "Departments" },
   { href: "#features", label: "Features" },
   { href: "#process", label: "Process" },
-  { href: "#showcase", label: "Showcase" },
-  { href: "#testimonials", label: "Testimonials" },
+  { href: "#gallery", label: "Gallery" },
   { href: "#faq", label: "FAQ" },
+  { href: "#contact", label: "Contact" },
 ];
 
 export function Navbar() {

@@ -149,6 +149,17 @@ model User {
   resetTokenHash      String?
   resetTokenExpiresAt DateTime?
 
+  // Reporting line (Lab Technician -> Labs Coordinator, etc.). Drives task visibility + assignment scope.
+  supervisorId String?
+  supervisor   User?   @relation("Supervision", fields: [supervisorId], references: [id], onDelete: SetNull)
+  reports      User[]  @relation("Supervision")
+
+  // Administrator <-> Coordinator working relationship (many-to-many, configured by Dean/Deputy/Admin)
+  administratorLinks AdministratorAssignment[] @relation("AssignmentCoordinator") // rows where this user is the coordinator
+  coordinatorLinks   AdministratorAssignment[] @relation("AssignmentAdministrator") // rows where this user is the administrator
+
+  dailyReports DailyReport[]
+
   ownedTasks       Task[]          @relation("TaskOwner")
   assignedTasks    Task[]          @relation("TaskAssigner")
   createdTasks     Task[]          @relation("TaskCreator")
@@ -172,7 +183,37 @@ model User {
   @@index([role])
   @@index([officeId])
   @@index([active])
+  @@index([supervisorId])
   @@map("users")
+}
+
+model AdministratorAssignment {
+  id              String   @id @default(cuid())
+  coordinatorId   String
+  coordinator     User     @relation("AssignmentCoordinator", fields: [coordinatorId], references: [id], onDelete: Cascade)
+  administratorId String
+  administrator   User     @relation("AssignmentAdministrator", fields: [administratorId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+
+  @@unique([coordinatorId, administratorId])
+  @@index([administratorId])
+  @@map("administrator_assignments")
+}
+
+/// One report per coordinator per local (Africa/Mogadishu) day. Due 19:00, Fridays excluded.
+model DailyReport {
+  id          String   @id @default(cuid())
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  reportDate  String // YYYY-MM-DD in Africa/Mogadishu
+  body        String   @db.Text
+  submittedAt DateTime @default(now())
+  late        Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([authorId, reportDate])
+  @@index([reportDate])
+  @@map("daily_reports")
 }
 
 model BackupCode {

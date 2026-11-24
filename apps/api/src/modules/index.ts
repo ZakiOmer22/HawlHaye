@@ -14,6 +14,7 @@ import { contactRouter } from "./contact/routes";
 import { ticketsRouter } from "./tickets/routes";
 import { systemRouter } from "./admin/system.routes";
 import { settingsRouter } from "./admin/settings.routes";
+import { dailyReportsRouter } from "./daily-reports/routes";
 
 export function registerModules(app: Express): void {
   app.use("/.well-known", wellKnownRouter);
@@ -33,4 +34,5 @@ export function registerModules(app: Express): void {
   app.use("/api/v1/tickets", ticketsRouter);
   app.use("/api/v1/admin/system", systemRouter);
   app.use("/api/v1/admin/settings", settingsRouter);
+  app.use("/api/v1/daily-reports", dailyReportsRouter);
 }

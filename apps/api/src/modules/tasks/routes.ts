@@ -1,13 +1,13 @@
 import { Router, type Request } from "express";
 import { z } from "zod";
-import type { Prisma, Task, User } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import multer from "multer";
 import path from "path";
 import crypto from "crypto";
 import fs from "fs";
 import xss from "xss";
 import rateLimit from "express-rate-limit";
-import { fromBuffer } from "file-type";
+import { safeFromBuffer } from "../../lib/safe-file-type";
 import { createTaskSchema, assignTaskSchema, transitionSchema } from "@hawl/shared";
 import { prisma } from "../../lib/prisma";
 import { asyncHandler } from "../../middleware/async";
@@ -48,38 +48,12 @@ type TaskWithDelegations = Prisma.TaskGetPayload<{
   include: { delegations: true };
 }>;
 
-// ── Centralized access check that includes Delegations ─────
-function canViewTask(user: AuthUser, task: TaskWithDelegations): boolean {
+// ── Centralized access check ───────────────────────────────────
+// Single source of truth is taskScopeFor() in ./service (Dean/Deputy: all; coordinators: own reporting
+// line; administrators: own + their coordinators' tasks; technicians: own). Delegations are included.
+async function canViewTask(user: AuthUser, task: TaskWithDelegations): Promise<boolean> {
   if (!task) return false;
-
-  // Admin & Leadership can see everything
-  if (["ADMINISTRATOR", "DEAN", "DEPUTY"].includes(user.role)) return true;
-
-  // Owner or Creator
-  if (task.ownerId === user.id) return true;
-  if (task.createdById === user.id) return true;
-
-  // Coordinators (if they share the office)
-  if (
-    ["FACULTY_COORDINATOR", "LABS_COORDINATOR"].includes(user.role) &&
-    task.officeId === user.officeId
-  )
-    return true;
-
-  // Delegates (if they have accepted the delegation)
-  if (
-    task.delegations &&
-    task.delegations.some((d) => d.delegateId === user.id && d.status === "ACCEPTED")
-  ) {
-    return true;
-  }
-
-  // Fallback to the shared service
-  try {
-    return canAccessTask(user as unknown as User, task as unknown as Task);
-  } catch {
-    return false;
-  }
+  return canAccessTask(user as unknown as Parameters<typeof canAccessTask>[0], task);
 }
 // ────────────────────────────────────────────────────────────────
 
@@ -129,10 +103,7 @@ tasksRouter.use(requireAuth);
 tasksRouter.get(
   "/",
   asyncHandler(async (req, res) => {
-    const where: Prisma.TaskWhereInput = {
-      deletedAt: null,
-      ...taskScopeFor(req.user!),
-    };
+    const where: Prisma.TaskWhereInput = { deletedAt: null };
     if (req.query.mine === "true") {
       where.OR = [
         { ownerId: req.user!.id },
@@ -171,9 +142,11 @@ tasksRouter.get(
 
     const take = Math.min(Number(req.query.take ?? 100), 200);
     const skip = Number(req.query.skip ?? 0);
+    // Scope is AND-ed in last so no filter above can widen what the caller is allowed to see.
+    const scoped: Prisma.TaskWhereInput = { AND: [taskScopeFor(req.user!), where] };
     const [data, total] = await Promise.all([
       prisma.task.findMany({
-        where,
+        where: scoped,
         orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
         take,
         skip,
@@ -183,7 +156,7 @@ tasksRouter.get(
           office: { select: { id: true, name: true } },
         },
       }),
-      prisma.task.count({ where }),
+      prisma.task.count({ where: scoped }),
     ]);
     res.json({ data, meta: { total, take, skip } });
   }),
@@ -192,10 +165,7 @@ tasksRouter.get(
 tasksRouter.get(
   "/board",
   asyncHandler(async (req, res) => {
-    const where: Prisma.TaskWhereInput = {
-      deletedAt: null,
-      ...taskScopeFor(req.user!),
-    };
+    const where: Prisma.TaskWhereInput = { deletedAt: null };
 
     // FIX: If Technician, they only see what's assigned to them or delegated to them
     if (req.user!.role === "LAB_TECHNICIAN") {
@@ -206,7 +176,7 @@ tasksRouter.get(
     }
 
     const tasks = await prisma.task.findMany({
-      where,
+      where: { AND: [taskScopeFor(req.user!), where] },
       orderBy: [{ priority: "desc" }, { dueDate: "asc" }],
       include: {
         owner: { select: { id: true, fullName: true } },
@@ -266,7 +236,7 @@ tasksRouter.get(
     if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
 
     // FIX: Use canViewTask
-    if (!canViewTask(req.user! as unknown as AuthUser, task)) {
+    if (!(await canViewTask(req.user! as unknown as AuthUser, task))) {
       logSecurityEvent("INVALID_OBJECT_ACCESS", {
         userId: req.user!.id,
         targetId: task.id,
@@ -308,7 +278,7 @@ tasksRouter.patch(
     const task = await prisma.task.findUnique({ where: { id }, include: { delegations: true } });
     if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
 
-    if (!canViewTask(req.user! as unknown as AuthUser, task)) {
+    if (!(await canViewTask(req.user! as unknown as AuthUser, task))) {
       logSecurityEvent("INVALID_OBJECT_ACCESS", {
         userId: req.user!.id,
         targetId: id,
@@ -336,13 +306,13 @@ tasksRouter.patch(
 
 tasksRouter.post(
   "/:id/assign",
-  requireRole("DEAN", "DEPUTY"),
+  requireRole("DEAN", "DEPUTY", "FACULTY_COORDINATOR", "LABS_COORDINATOR"),
   asyncHandler(async (req, res) => {
     const id = pathParam(req, "id");
     const task = await prisma.task.findUnique({ where: { id }, include: { delegations: true } });
     if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
 
-    if (!canViewTask(req.user! as unknown as AuthUser, task)) {
+    if (!(await canViewTask(req.user! as unknown as AuthUser, task))) {
       logSecurityEvent("INVALID_OBJECT_ACCESS", {
         userId: req.user!.id,
         targetId: id,
@@ -376,7 +346,7 @@ tasksRouter.post(
     const task = await prisma.task.findUnique({ where: { id }, include: { delegations: true } });
     if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
 
-    if (!canViewTask(req.user! as unknown as AuthUser, task)) {
+    if (!(await canViewTask(req.user! as unknown as AuthUser, task))) {
       logSecurityEvent("INVALID_OBJECT_ACCESS", {
         userId: req.user!.id,
         targetId: id,
@@ -458,7 +428,7 @@ tasksRouter.get(
     const task = await prisma.task.findUnique({ where: { id }, include: { delegations: true } });
     if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
 
-    if (!canViewTask(req.user! as unknown as AuthUser, task)) {
+    if (!(await canViewTask(req.user! as unknown as AuthUser, task))) {
       logSecurityEvent("INVALID_OBJECT_ACCESS", {
         userId: req.user!.id,
         targetId: id,
@@ -494,7 +464,7 @@ tasksRouter.post(
     const task = await prisma.task.findUnique({ where: { id }, include: { delegations: true } });
     if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
 
-    if (!canViewTask(req.user! as unknown as AuthUser, task)) {
+    if (!(await canViewTask(req.user! as unknown as AuthUser, task))) {
       logSecurityEvent("INVALID_OBJECT_ACCESS", {
         userId: req.user!.id,
         targetId: id,
@@ -524,7 +494,7 @@ tasksRouter.get(
     const task = await prisma.task.findUnique({ where: { id }, include: { delegations: true } });
     if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
 
-    if (!canViewTask(req.user! as unknown as AuthUser, task)) {
+    if (!(await canViewTask(req.user! as unknown as AuthUser, task))) {
       logSecurityEvent("INVALID_OBJECT_ACCESS", {
         userId: req.user!.id,
         targetId: id,
@@ -553,7 +523,7 @@ tasksRouter.post(
     const task = await prisma.task.findUnique({ where: { id }, include: { delegations: true } });
     if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
 
-    if (!canViewTask(req.user! as unknown as AuthUser, task)) {
+    if (!(await canViewTask(req.user! as unknown as AuthUser, task))) {
       logSecurityEvent("INVALID_OBJECT_ACCESS", {
         userId: req.user!.id,
         targetId: id,
@@ -565,7 +535,7 @@ tasksRouter.post(
     if (!req.file) throw new HttpError(400, "No file uploaded", "invalid_request");
 
     const fileBuffer = req.file.buffer;
-    const type = await fromBuffer(fileBuffer);
+    const type = await safeFromBuffer(fileBuffer);
 
     if (!type || !ALLOWED_MIMES.includes(type.mime)) {
       logger.warn(
@@ -620,7 +590,7 @@ tasksRouter.get(
     const task = await prisma.task.findUnique({ where: { id }, include: { delegations: true } });
     if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
 
-    if (!canViewTask(req.user! as unknown as AuthUser, task)) {
+    if (!(await canViewTask(req.user! as unknown as AuthUser, task))) {
       logSecurityEvent("INVALID_OBJECT_ACCESS", {
         userId: req.user!.id,
         targetId: id,
@@ -645,7 +615,7 @@ tasksRouter.get(
     const task = await prisma.task.findUnique({ where: { id }, include: { delegations: true } });
     if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
 
-    if (!canViewTask(req.user! as unknown as AuthUser, task)) {
+    if (!(await canViewTask(req.user! as unknown as AuthUser, task))) {
       logSecurityEvent("INVALID_OBJECT_ACCESS", {
         userId: req.user!.id,
         targetId: id,
@@ -713,7 +683,7 @@ tasksRouter.post(
     const task = await prisma.task.findUnique({ where: { id }, include: { delegations: true } });
     if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
 
-    if (!canViewTask(req.user! as unknown as AuthUser, task)) {
+    if (!(await canViewTask(req.user! as unknown as AuthUser, task))) {
       logSecurityEvent("INVALID_OBJECT_ACCESS", {
         userId: req.user!.id,
         targetId: id,

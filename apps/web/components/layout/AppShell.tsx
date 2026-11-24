@@ -17,6 +17,7 @@ import {
   LayoutGrid,
   CheckSquare,
   ClipboardCheck,
+  FileText,
   Gauge,
   BarChart3,
   Users,
@@ -85,6 +86,12 @@ const ACADEMIC_NAV: NavItem[] = [
     href: "/review",
     labelKey: "nav.review",
     icon: ClipboardCheck,
+    roles: ["DEAN", "DEPUTY", "FACULTY_COORDINATOR", "LABS_COORDINATOR"],
+  },
+  {
+    href: "/daily-report",
+    labelKey: "nav.dailyReport",
+    icon: FileText,
     roles: ["DEAN", "DEPUTY", "FACULTY_COORDINATOR", "LABS_COORDINATOR"],
   },
   {
@@ -189,7 +196,9 @@ function ShellInner({
 
   const allowedAcademicNav = ACADEMIC_NAV.filter((item) => {
     if (user.role === "ADMINISTRATOR") return true;
-    if (Object.keys(userPermissions).length > 0) {
+    // Only trust the saved permission matrix for routes it knows about; routes added after the matrix
+    // was saved (e.g. /daily-report) fall back to the role list instead of silently disappearing.
+    if (Object.keys(userPermissions).length > 0 && item.href in userPermissions) {
       return userPermissions[item.href] === true;
     }
     return item.roles.includes("ALL") || item.roles.includes(user.role);

@@ -7,23 +7,93 @@ import { HttpError } from "../../middleware/errors";
 import { emitNotification, emitBoardChanged } from "../../lib/events";
 import { writeAudit } from "../../lib/audit";
 
-const LEADERSHIP = ["DEAN", "DEPUTY", "ADMINISTRATOR"] as const;
-const COORDINATOR = ["FACULTY_COORDINATOR", "LABS_COORDINATOR"] as const;
+type AuthedUser = NonNullable<Express.Request["user"]>;
 
-export function canAccessTask(user: NonNullable<Express.Request["user"]>, task: Task): boolean {
-  if ((LEADERSHIP as readonly string[]).includes(user.role)) return true;
-  if ((COORDINATOR as readonly string[]).includes(user.role)) {
-    return task.officeId === user.officeId;
+/** Dean + Deputy have full oversight. NOTE: ADMINISTRATOR is deliberately NOT here any more: per the
+ *  CECIT hierarchy chart, administrators only see their own tasks and tasks shared by their coordinators. */
+const FULL_OVERSIGHT = ["DEAN", "DEPUTY"] as const;
+const hasFullOversight = (role: string): boolean => (FULL_OVERSIGHT as readonly string[]).includes(role);
+
+/**
+ * Task visibility, per the CECIT "Task Visibility and Oversight" chart:
+ *  - Dean / Deputy         -> every task
+ *  - Labs Coordinator      -> own tasks + tasks of the Lab Technicians who report to them
+ *  - Faculty Coordinator   -> own tasks + tasks owned by their assigned Administrator(s)
+ *  - Administrator         -> own tasks + tasks created/assigned by the coordinators they are assigned to
+ *  - Lab Technician        -> own tasks only
+ * Returns a where-clause. ALWAYS combine it with other filters using AND (never spread it next to
+ * another `OR`/`AND` key, or the later key silently replaces the scope).
+ */
+export function taskScopeFor(user: AuthedUser): Prisma.TaskWhereInput {
+  if (hasFullOversight(user.role)) return {};
+
+  const clauses: Prisma.TaskWhereInput[] = [
+    { ownerId: user.id },
+    { createdById: user.id },
+    { delegations: { some: { delegateId: user.id, status: "ACCEPTED" } } },
+  ];
+
+  switch (user.role) {
+    case "LABS_COORDINATOR":
+      clauses.push({ owner: { supervisorId: user.id } }, { createdBy: { supervisorId: user.id } });
+      break;
+    case "FACULTY_COORDINATOR":
+      clauses.push({ owner: { coordinatorLinks: { some: { coordinatorId: user.id } } } });
+      break;
+    case "ADMINISTRATOR": {
+      const sharedByMyCoordinator = { administratorLinks: { some: { administratorId: user.id } } };
+      clauses.push({ createdBy: sharedByMyCoordinator }, { assignedBy: sharedByMyCoordinator });
+      break;
+    }
+    default:
+      break; // LAB_TECHNICIAN: own only
   }
-  return task.ownerId === user.id || task.createdById === user.id;
+
+  return { OR: clauses };
 }
 
-export function taskScopeFor(user: NonNullable<Express.Request["user"]>): Prisma.TaskWhereInput {
-  if ((LEADERSHIP as readonly string[]).includes(user.role)) return {};
-  if ((COORDINATOR as readonly string[]).includes(user.role)) {
-    return { officeId: user.officeId ?? "__none__" };
+export async function canAccessTask(user: AuthedUser, task: Pick<Task, "id">): Promise<boolean> {
+  const n = await prisma.task.count({ where: { id: task.id, AND: [taskScopeFor(user)] } });
+  return n > 0;
+}
+
+type AssignableUser = { id: string; fullName: string; role: string; officeId: string | null };
+
+/** Who may this actor hand work to? Dean/Deputy: anyone. Coordinators: themselves + their own reporting line. */
+export async function assignableUsersFor(actor: AuthedUser): Promise<AssignableUser[]> {
+  const select = { id: true, fullName: true, role: true, officeId: true } as const;
+  if (hasFullOversight(actor.role)) {
+    return prisma.user.findMany({ where: { active: true }, select, orderBy: { fullName: "asc" } });
   }
-  return { OR: [{ ownerId: user.id }, { createdById: user.id }] };
+  if (actor.role === "LABS_COORDINATOR") {
+    return prisma.user.findMany({
+      where: { active: true, OR: [{ id: actor.id }, { supervisorId: actor.id }] },
+      select,
+      orderBy: { fullName: "asc" },
+    });
+  }
+  if (actor.role === "FACULTY_COORDINATOR") {
+    return prisma.user.findMany({
+      where: {
+        active: true,
+        OR: [{ id: actor.id }, { coordinatorLinks: { some: { coordinatorId: actor.id } } }],
+      },
+      select,
+      orderBy: { fullName: "asc" },
+    });
+  }
+  return [];
+}
+
+async function assertCanAssignTo(actor: AuthedUser, ownerId: string): Promise<void> {
+  const allowed = await assignableUsersFor(actor);
+  if (!allowed.some((u) => u.id === ownerId)) {
+    throw new HttpError(
+      403,
+      "You can only assign tasks to people in your own reporting line",
+      "invalid_owner",
+    );
+  }
 }
 
 async function nextTaskCode(tx: Prisma.TransactionClient): Promise<string> {
@@ -43,14 +113,29 @@ export type CreateTaskInputInternal = {
   officeId: string;
   priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
   dueDate?: Date;
+  /** Optional: assign to an officer straight away (requires dueDate; validated by the schema). */
+  ownerId?: string;
 };
 
 export async function createTask(
-  actor: NonNullable<Express.Request["user"]>,
+  actor: AuthedUser,
   input: CreateTaskInputInternal,
   req?: Request, // Fixed: Changed from any to Request
 ): Promise<Task> {
+  if (input.ownerId) {
+    const check = canTransition(actor, { status: "UNASSIGNED", ownerId: null, delegateId: null }, "ASSIGNED");
+    if (!check.ok) throw new HttpError(403, "You are not allowed to assign tasks", "forbidden");
+    await assertCanAssignTo(actor, input.ownerId);
+  }
+
   const task = await prisma.$transaction(async (tx) => {
+    let ownerName: string | null = null;
+    if (input.ownerId) {
+      const owner = await tx.user.findUnique({ where: { id: input.ownerId } });
+      if (!owner || !owner.active) throw new HttpError(400, "Owner not valid", "invalid_owner");
+      ownerName = owner.fullName;
+    }
+
     const code = await nextTaskCode(tx);
     const t = await tx.task.create({
       data: {
@@ -62,11 +147,26 @@ export async function createTask(
         priority: input.priority,
         dueDate: input.dueDate,
         createdById: actor.id,
+        ...(input.ownerId
+          ? { ownerId: input.ownerId, assignedById: actor.id, status: "ASSIGNED" as const }
+          : {}),
       },
     });
     await tx.taskEvent.create({
       data: { taskId: t.id, actorId: actor.id, type: "CREATED", toValue: "UNASSIGNED" },
     });
+    if (input.ownerId) {
+      await tx.taskEvent.create({
+        data: {
+          taskId: t.id,
+          actorId: actor.id,
+          type: "ASSIGNED",
+          fromValue: "UNASSIGNED",
+          toValue: "ASSIGNED",
+          note: `Assigned to ${ownerName}`,
+        },
+      });
+    }
     return t;
   });
 
@@ -84,11 +184,13 @@ export async function createTask(
 }
 
 export async function assignTask(
-  actor: NonNullable<Express.Request["user"]>,
+  actor: AuthedUser,
   taskId: string,
   input: { ownerId: string; priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"; dueDate: Date },
   req?: Request, // Fixed
 ): Promise<Task> {
+  await assertCanAssignTo(actor, input.ownerId);
+
   const updated = await prisma.$transaction(async (tx) => {
     const task = await tx.task.findUnique({ where: { id: taskId } });
     if (!task || task.deletedAt) throw new HttpError(404, "Task not found", "not_found");
@@ -148,7 +250,7 @@ export async function assignTask(
 }
 
 export async function transitionTask(
-  actor: NonNullable<Express.Request["user"]>,
+  actor: AuthedUser,
   taskId: string,
   input: { to: Task["status"]; reason?: string },
   req?: Request, // Fixed
@@ -225,7 +327,7 @@ export async function transitionTask(
 }
 
 export async function delegateTask(
-  actor: NonNullable<Express.Request["user"]>,
+  actor: AuthedUser,
   taskId: string,
   input: { delegateId: string; reason?: string },
   req?: Request, // Fixed
@@ -292,7 +394,7 @@ export async function delegateTask(
 }
 
 export async function respondToDelegation(
-  actor: NonNullable<Express.Request["user"]>,
+  actor: AuthedUser,
   taskId: string,
   delegationId: string,
   action: "ACCEPTED" | "DECLINED",
@@ -373,7 +475,7 @@ export async function respondToDelegation(
 }
 
 export async function softDeleteTask(
-  actor: NonNullable<Express.Request["user"]>,
+  actor: AuthedUser,
   taskId: string,
   req?: Request, // Fixed
 ) {

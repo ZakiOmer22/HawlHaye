@@ -34,6 +34,7 @@ export const en = {
   "nav.offices": "Offices",
   "nav.categories": "Categories",
   "nav.help": "Help",
+  "nav.dailyReport": "Daily Report",
 
   "menu.profile": "Profile & settings",
   "menu.changePassword": "Change password",

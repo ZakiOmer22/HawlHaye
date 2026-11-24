@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "HAWLHAYE",
+    "slug": "hawlhaye-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "hawlhaye",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "so.edu.cecit.hawlhaye",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Unlock HAWLHAYE with Face ID.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "so.edu.cecit.hawlhaye",
+      "allowBackup": false,
+      "permissions": ["USE_BIOMETRIC", "USE_FINGERPRINT"]
+    },
+    "plugins": ["expo-secure-store", "expo-local-authentication", "expo-web-browser"],
+    "extra": {
+      "apiUrl": "https://hawl-haye.vercel.app",
+      "webOrigin": "https://hawl-haye.vercel.app"
+    }
+  }
+}

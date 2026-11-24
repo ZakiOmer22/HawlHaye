@@ -1,4 +1,4 @@
-import { isLeadership, type Role } from "./roles";
+import { isCoordinator, isLeadership, type Role } from "./roles";
 import type { TaskStatus } from "./status";
 
 export interface Actor {
@@ -10,7 +10,7 @@ export interface TaskRef {
   ownerId: string | null;
   delegateId: string | null;
 }
-type Who = "leadership" | "owner" | "delegate";
+type Who = "leadership" | "coordinator" | "owner" | "delegate";
 
 interface Rule {
   from: TaskStatus;
@@ -24,8 +24,8 @@ export const TRANSITIONS: readonly Rule[] = [
   {
     from: "UNASSIGNED",
     to: "ASSIGNED",
-    who: ["leadership"],
-    note: "Needs owner, priority, due date",
+    who: ["leadership", "coordinator"],
+    note: "Needs owner, priority, due date. Coordinators can only assign inside their reporting line (enforced by the API).",
   },
   { from: "ASSIGNED", to: "IN_PROGRESS", who: ["owner", "delegate"], note: "Work started" },
   { from: "IN_PROGRESS", to: "BLOCKED", who: ["owner", "delegate"], note: "Reason required" },
@@ -46,6 +46,7 @@ export function canTransition(actor: Actor, task: TaskRef, to: TaskStatus): Tran
 
   const allowed = rule.who.some((w) => {
     if (w === "leadership") return isLeadership(actor.role);
+    if (w === "coordinator") return isCoordinator(actor.role);
     if (w === "owner") return task.ownerId === actor.id;
     return task.delegateId === actor.id;
   });

@@ -1,5 +1,5 @@
 import multer from "multer";
-import { fromBuffer } from "file-type";
+import { safeFromBuffer } from "../lib/safe-file-type";
 import { HttpError } from "./errors";
 import { prisma } from "../lib/prisma";
 import { getSystemSettings } from "./settings";
@@ -28,7 +28,7 @@ const ALLOWED_MIMES = [
 ];
 
 export async function validateFileMagicBytes(fileBuffer: Buffer) {
-  const type = await fromBuffer(fileBuffer);
+  const type = await safeFromBuffer(fileBuffer);
 
   if (!type || !ALLOWED_MIMES.includes(type.mime)) {
     throw new HttpError(

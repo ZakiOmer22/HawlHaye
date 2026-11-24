@@ -13,7 +13,8 @@ const task = (status: Parameters<typeof canTransition>[1]["status"]) => ({
 describe("workflow", () => {
   it("only leadership assigns", () => {
     expect(canTransition(dean, task("UNASSIGNED"), "ASSIGNED").ok).toBe(true);
-    expect(canTransition(coord, task("UNASSIGNED"), "ASSIGNED").ok).toBe(false);
+    expect(canTransition(coord, task("UNASSIGNED"), "ASSIGNED").ok).toBe(true);
+    expect(canTransition(tech, task("UNASSIGNED"), "ASSIGNED").ok).toBe(false);
   });
   it("only leadership accepts from review", () => {
     expect(canTransition(dean, task("REVIEW"), "COMPLETED").ok).toBe(true);

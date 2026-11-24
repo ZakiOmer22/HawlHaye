@@ -30,10 +30,14 @@ searchRouter.get(
       prisma.task.findMany({
         where: {
           deletedAt: null,
-          ...taskScopeFor(user),
-          OR: [
-            { title: { contains: q, mode: "insensitive" } },
-            { code: { contains: q, mode: "insensitive" } },
+          AND: [
+            taskScopeFor(user),
+            {
+              OR: [
+                { title: { contains: q, mode: "insensitive" } },
+                { code: { contains: q, mode: "insensitive" } },
+              ],
+            },
           ],
         },
         take: 5,

@@ -25,8 +25,14 @@ export const createTaskSchema = z
     officeId: z.string().min(1),
     priority: z.enum(PRIORITIES).default("MEDIUM"),
     dueDate: z.coerce.date().optional(),
+    /** Optional: assign to an officer at creation time. Requires a due date. */
+    ownerId: z.string().min(1).optional(),
   })
-  .strict();
+  .strict()
+  .refine((v) => !v.ownerId || !!v.dueDate, {
+    message: "A due date is required when assigning a task to an officer",
+    path: ["dueDate"],
+  });
 
 export const assignTaskSchema = z
   .object({
@@ -46,6 +52,21 @@ export const transitionSchema = z
     message: "A reason is required when blocking a task",
     path: ["reason"],
   });
+
+/** Daily academic report submitted by coordinators (due 19:00 Africa/Mogadishu, Fridays excluded). */
+export const dailyReportSchema = z
+  .object({
+    body: sanitizedString(2000).pipe(z.string().min(10, "Please write at least a short summary")),
+  })
+  .strict();
+
+export const setHierarchySchema = z
+  .object({
+    supervisorId: z.string().min(1).nullable().optional(),
+    /** For ADMINISTRATOR users: the coordinators they work for. */
+    coordinatorIds: z.array(z.string().min(1)).max(10).optional(),
+  })
+  .strict();
 
 export const createOfficeSchema = z
   .object({
@@ -77,5 +98,7 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type AssignTaskInput = z.infer<typeof assignTaskSchema>;
 export type TransitionInput = z.infer<typeof transitionSchema>;
+export type DailyReportInput = z.infer<typeof dailyReportSchema>;
+export type SetHierarchyInput = z.infer<typeof setHierarchySchema>;
 export type CreateOfficeInput = z.infer<typeof createOfficeSchema>;
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;

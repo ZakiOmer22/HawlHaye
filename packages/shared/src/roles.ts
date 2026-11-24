@@ -11,6 +11,10 @@ export type Role = (typeof ROLES)[number];
 export const LEADERSHIP_ROLES: readonly Role[] = ["DEAN", "DEPUTY"];
 export const isLeadership = (role: Role): boolean => LEADERSHIP_ROLES.includes(role);
 
+/** Coordinators may assign work inside their own reporting line (see assignable-users rules on the API). */
+export const COORDINATOR_ROLES: readonly Role[] = ["FACULTY_COORDINATOR", "LABS_COORDINATOR"];
+export const isCoordinator = (role: Role): boolean => COORDINATOR_ROLES.includes(role);
+
 export const ROLE_LABELS: Record<Role, string> = {
   DEAN: "Dean",
   DEPUTY: "Deputy Dean",

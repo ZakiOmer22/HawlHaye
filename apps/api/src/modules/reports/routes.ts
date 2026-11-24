@@ -37,7 +37,7 @@ reportsRouter.get(
 
     const baseWhere = {
       deletedAt: null,
-      ...taskScopeFor(user),
+      AND: [taskScopeFor(user)],
       ...(isLeadership && f.officeId ? { officeId: f.officeId } : {}),
       ...(f.categoryId ? { categoryId: f.categoryId } : {}),
     };

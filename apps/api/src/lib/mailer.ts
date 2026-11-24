@@ -308,7 +308,7 @@ export async function sendContactEmail(
   const toEmail = process.env.ADMIN_EMAIL || env.SMTP_USER;
 
   if (env.NODE_ENV !== "production" && (!env.SMTP_HOST || !env.SMTP_USER)) {
-    console.log(
+    console.warn(
       `\n[DEV MODE] Contact form submission from ${email}:\nSubject: ${inquiryType}\nMessage: ${message}\n`,
     );
     return;
@@ -339,7 +339,7 @@ export async function sendPasswordReset(email: string, token: string): Promise<v
   const link = `${env.WEB_ORIGIN}/reset-password?token=${encodeURIComponent(token)}`;
 
   if (env.NODE_ENV !== "production" && (!env.SMTP_HOST || !env.SMTP_USER)) {
-    console.log(`\n[DEV MODE] No SMTP configured.\nPassword reset for ${email}:\n${link}\n`);
+    console.warn(`\n[DEV MODE] No SMTP configured.\nPassword reset for ${email}:\n${link}\n`);
     return;
   }
   if (!env.SMTP_HOST || !env.SMTP_USER) {
@@ -374,7 +374,7 @@ export async function sendInviteEmail(
   const link = `${env.WEB_ORIGIN}/invite/accept?token=${encodeURIComponent(token)}`;
 
   if (env.NODE_ENV !== "production" && (!env.SMTP_HOST || !env.SMTP_USER)) {
-    console.log(`\n[DEV MODE] No SMTP configured.\nInvite for ${email}:\n${link}\n`);
+    console.warn(`\n[DEV MODE] No SMTP configured.\nInvite for ${email}:\n${link}\n`);
     return;
   }
   if (!env.SMTP_HOST || !env.SMTP_USER) {

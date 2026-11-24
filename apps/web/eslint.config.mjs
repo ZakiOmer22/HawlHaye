@@ -1,22 +1,38 @@
-import js from "@eslint/js";
-import tseslint from "typescript-eslint";
-import nextPlugin from "@next/eslint-plugin-next";
+// apps/web/eslint.config.mjs
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+import { FlatCompat } from "@eslint/eslintrc";
 
-export default tseslint.config(
-  // Global ignores — must be the FIRST object
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+});
+
+const eslintConfig = [
   {
-    ignores: [".next/**", "node_modules/**", "dist/**", "build/**", "public/**"],
+    ignores: [
+      ".next/**",
+      "node_modules/**",
+      "dist/**",
+      "build/**",
+      "public/**",
+      // Ignore everything outside of apps/web
+      "../../apps/mobile/**",
+      "../../apps/api/**",
+      "../../packages/**",
+    ],
   },
-
-  js.configs.recommended,
-  ...tseslint.configs.recommended,
-
+  ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
-    files: ["**/*.{ts,tsx,js,mjs}"],
-    plugins: { "@next/next": nextPlugin },
     rules: {
-      ...nextPlugin.configs.recommended.rules,
-      ...nextPlugin.configs["core-web-vitals"].rules,
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
     },
   },
-);
+];
+
+export default eslintConfig;

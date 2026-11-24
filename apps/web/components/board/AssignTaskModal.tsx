@@ -40,7 +40,7 @@ export function AssignTaskModal({ isOpen, onClose, onSuccess, task }: AssignTask
   useEffect(() => {
     if (isOpen) {
       setLoading(true);
-      api<{ data: User[] }>("/users")
+      api<{ data: User[] }>("/users/assignable")
         // FIXED: Removed the .filter(u => u.active) to satisfy TypeScript
         .then((res) => setUsers(res.data))
         .catch(() => setError("Failed to load users"))
@@ -99,7 +99,7 @@ export function AssignTaskModal({ isOpen, onClose, onSuccess, task }: AssignTask
     } catch (err) {
       if (err instanceof ApiError && err.code === "forbidden") {
         setError(
-          "You do not have permission to assign tasks. Only Deans and Deputies can do this.",
+          "You do not have permission to assign this task. You can only assign work to people in your own reporting line.",
         );
       } else {
         setError(err instanceof ApiError ? err.message : "Failed to assign task");

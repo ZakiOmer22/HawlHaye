@@ -36,6 +36,7 @@ export const so: Record<TranslationKey, string> = {
   "nav.offices": "Xafiisyada",
   "nav.categories": "Qaybaha",
   "nav.help": "Caawinaad",
+  "nav.dailyReport": "Warbixinta Maalinlaha ah",
 
   "menu.profile": "Astaanta & dejinta",
   "menu.changePassword": "Beddel furaha",

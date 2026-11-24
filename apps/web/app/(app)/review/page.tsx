@@ -27,20 +27,22 @@ export default function ReviewQueuePage() {
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
 
-  // Modal State for Returning
   const [pendingReturn, setPendingReturn] = useState<Task | null>(null);
   const [reasonInput, setReasonInput] = useState("");
 
   const loadTasks = useCallback(async () => {
     try {
       const res = await api<{ data: Task[] }>(`/tasks?status=REVIEW&take=100&_t=${Date.now()}`);
-      // Sort by updatedAt so the oldest waiting tasks are at the top
       const sorted = [...res.data].sort(
         (a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime(),
       );
       setTasks(sorted);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t("review.error.load"));
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError(t("review.error.load"));
+      }
     }
   }, [t]);
 
@@ -48,12 +50,10 @@ export default function ReviewQueuePage() {
     void loadTasks();
   }, [loadTasks]);
 
-  // 🚀 REAL-TIME UPDATE LISTENER
   useBoardRealtime(() => {
     void loadTasks();
   });
 
-  // 🚀 SILENT POLLING FALLBACK (Every 15 seconds if tab is active)
   useEffect(() => {
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") {
@@ -80,9 +80,13 @@ export default function ReviewQueuePage() {
         setReasonInput("");
       }
 
-      await loadTasks(); // Refresh the list
+      await loadTasks();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t("review.error.action"));
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError(t("review.error.action"));
+      }
     } finally {
       setActionBusy(null);
     }
@@ -96,12 +100,12 @@ export default function ReviewQueuePage() {
     else if (days === 1) label = t("review.wait.oneDay");
     else label = t("review.wait.days", { days });
 
-    let colorClass = "text-emerald-400 bg-emerald-400/10 border-emerald-400/20"; // < 1 day
+    let colorClass = "text-emerald-400 bg-emerald-400/10 border-emerald-400/20";
     if (days >= 5)
-      colorClass = "text-red-400 bg-red-400/10 border-red-400/20"; // 5+ days
+      colorClass = "text-red-400 bg-red-400/10 border-red-400/20";
     else if (days >= 3)
-      colorClass = "text-amber-400 bg-amber-400/10 border-amber-400/20"; // 3-4 days
-    else if (days >= 1) colorClass = "text-blue-400 bg-blue-400/10 border-blue-400/20"; // 1-2 days
+      colorClass = "text-amber-400 bg-amber-400/10 border-amber-400/20";
+    else if (days >= 1) colorClass = "text-blue-400 bg-blue-400/10 border-blue-400/20";
 
     return { label, colorClass };
   };
@@ -146,7 +150,6 @@ export default function ReviewQueuePage() {
         {announcement}
       </div>
 
-      {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <p className="text-xs font-extrabold uppercase tracking-[0.22em] text-[#e8bc69] flex items-center gap-2">
@@ -172,7 +175,6 @@ export default function ReviewQueuePage() {
         </div>
       )}
 
-      {/* Task List */}
       {tasks.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-[#334155] bg-[#1E293B]/50 p-16 text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#0F172A] border border-[#334155] shadow-inner">
@@ -199,7 +201,6 @@ export default function ReviewQueuePage() {
                     : "border-[#334155] hover:border-[#e8bc69]/40 hover:shadow-md hover:shadow-[#e8bc69]/5"
                 }`}
               >
-                {/* Task Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-3">
                     <span className="text-[11px] font-mono font-bold tracking-wider text-[#64748B] bg-[#0F172A] px-2 py-0.5 rounded border border-[#334155]">
@@ -247,7 +248,6 @@ export default function ReviewQueuePage() {
                   </div>
                 </div>
 
-                {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row lg:flex-col gap-2 shrink-0 lg:w-36 pt-4 lg:pt-0 border-t lg:border-t-0 lg:border-l border-[#334155] lg:pl-6">
                   <button
                     onClick={() => executeAction(task, "COMPLETED")}
@@ -276,7 +276,6 @@ export default function ReviewQueuePage() {
         </div>
       )}
 
-      {/* RETURN REASON MODAL */}
       <Modal
         isOpen={!!pendingReturn}
         onClose={() => {

@@ -36,6 +36,7 @@ export const ar: Record<TranslationKey, string> = {
   "nav.offices": "المكاتب",
   "nav.categories": "الفئات",
   "nav.help": "مساعدة",
+  "nav.dailyReport": "التقرير اليومي",
 
   "menu.profile": "الملف الشخصي والإعدادات",
   "menu.changePassword": "تغيير كلمة المرور",
