@@ -1,10 +1,23 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AppState } from "react-native";
 import EventSource from "react-native-sse";
 import { API_URL } from "../config";
 import { baseHeaders } from "../api/client";
 
-export interface NotificationPayload { type: string; title: string; message: string; link?: string }
+export interface NotificationPayload {
+  type: string;
+  title: string;
+  message: string;
+  link?: string;
+}
 interface RealtimeValue {
   notifications: NotificationPayload[];
   unreadCount: number;
@@ -25,14 +38,24 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     let retries = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const close = () => { esRef.current?.removeAllEventListeners(); esRef.current?.close(); esRef.current = null; };
+    const close = () => {
+      esRef.current?.removeAllEventListeners();
+      esRef.current?.close();
+      esRef.current = null;
+    };
     const connect = () => {
       if (cancelled || esRef.current) return;
       const es = new EventSource<Evt>(`${API_URL}/api/v1/notifications/stream`, {
-        headers: baseHeaders(), withCredentials: true, pollingInterval: 0, timeoutBeforeConnection: 0, timeout: 0,
+        headers: baseHeaders(),
+        withCredentials: true,
+        pollingInterval: 0,
+        timeoutBeforeConnection: 0,
+        timeout: 0,
       });
       esRef.current = es;
-      es.addEventListener("open", () => { retries = 0; });
+      es.addEventListener("open", () => {
+        retries = 0;
+      });
       es.addEventListener("notification", (e) => {
         if (!("data" in e) || !e.data) return;
         try {
@@ -40,7 +63,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           setNotifications((p) => [d, ...p].slice(0, 20));
           setUnreadCount((n) => n + 1);
           setBoardVersion((v) => v + 1);
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       });
       es.addEventListener("board-changed", () => setBoardVersion((v) => v + 1));
       es.addEventListener("error", () => {
@@ -53,14 +78,29 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     connect();
     const poll = setInterval(() => setBoardVersion((v) => v + 1), 60_000); // fallback if SSE is unavailable
     const sub = AppState.addEventListener("change", (s) => {
-      if (s === "active") { retries = 0; connect(); setBoardVersion((v) => v + 1); }
-      else { close(); if (timer) clearTimeout(timer); }
+      if (s === "active") {
+        retries = 0;
+        connect();
+        setBoardVersion((v) => v + 1);
+      } else {
+        close();
+        if (timer) clearTimeout(timer);
+      }
     });
-    return () => { cancelled = true; clearInterval(poll); if (timer) clearTimeout(timer); sub.remove(); close(); };
+    return () => {
+      cancelled = true;
+      clearInterval(poll);
+      if (timer) clearTimeout(timer);
+      sub.remove();
+      close();
+    };
   }, []);
 
   const markAllRead = useCallback(() => setUnreadCount(0), []);
-  const value = useMemo(() => ({ notifications, unreadCount, markAllRead, boardVersion }), [notifications, unreadCount, markAllRead, boardVersion]);
+  const value = useMemo(
+    () => ({ notifications, unreadCount, markAllRead, boardVersion }),
+    [notifications, unreadCount, markAllRead, boardVersion],
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

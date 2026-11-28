@@ -27,6 +27,7 @@ import { CreateTaskModal } from "@/components/board/CreateTaskModal";
 import { AssignTaskModal } from "@/components/board/AssignTaskModal";
 import { usePreferences, type TranslationKey } from "@/lib/preferences";
 import { useBoardRealtime } from "@/lib/realtime";
+import { canCreateTasks } from "@/lib/permissions";
 import {
   Plus,
   Search,
@@ -684,13 +685,7 @@ export default function BoardPage() {
   }
 
   // RBAC Check for Creating Tasks
-  const canCreateTask = [
-    "ADMINISTRATOR",
-    "DEAN",
-    "DEPUTY",
-    "FACULTY_COORDINATOR",
-    "LABS_COORDINATOR",
-  ].includes(user.role);
+  const canCreateTask = canCreateTasks(user.role);
 
   const totalCount = Object.values(displayTotals).reduce((a, b) => a + b, 0);
   const taskCountLabel =

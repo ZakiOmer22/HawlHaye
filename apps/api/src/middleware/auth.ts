@@ -16,9 +16,26 @@ export const requireAuth: RequestHandler = asyncHandler(async (req, _res, next) 
   const token = req.cookies?.[SESSION_COOKIE];
   if (!token) throw new HttpError(401, "Authentication required", "unauthenticated");
 
+  // Allowlist, not blocklist: the password hash, 2FA secret and reset-token columns are never even
+  // loaded into the request context, so no handler can leak them by accident.
   const session = await prisma.session.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: true },
+    select: {
+      id: true,
+      revokedAt: true,
+      expiresAt: true,
+      lastSeenAt: true,
+      user: {
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          officeId: true,
+          active: true,
+          mustChangePassword: true,
+        },
+      },
+    },
   });
 
   if (!session || session.revokedAt || session.expiresAt.getTime() < Date.now()) {
@@ -45,21 +62,12 @@ export const requireAuth: RequestHandler = asyncHandler(async (req, _res, next) 
       });
   }
 
-  // Strip sensitive fields from req.user to prevent accidental exposure
-  const {
-    passwordHash: _passwordHash,
-    twoFactorSecret: _twoFactorSecret,
-    resetTokenHash: _resetTokenHash,
-    resetTokenExpiresAt: _resetTokenExpiresAt,
-    ...safeUser
-  } = session.user;
-
-  void _passwordHash;
-  void _twoFactorSecret;
-  void _resetTokenHash;
-  void _resetTokenExpiresAt;
-
-  req.user = safeUser;
+  req.user = {
+    id: session.user.id,
+    email: session.user.email,
+    role: session.user.role,
+    officeId: session.user.officeId,
+  };
 
   if (session.user.mustChangePassword) {
     const path = req.originalUrl.split("?")[0];

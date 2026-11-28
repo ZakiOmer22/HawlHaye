@@ -1,5 +1,10 @@
 import React from "react";
-import { DarkTheme, DefaultTheme, NavigationContainer, type LinkingOptions } from "@react-navigation/native";
+import {
+  DarkTheme,
+  DefaultTheme,
+  NavigationContainer,
+  type LinkingOptions,
+} from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import * as Linking from "expo-linking";
 import { useAuth } from "../auth/AuthContext";
@@ -8,13 +13,25 @@ import { Shell } from "../components/Shell";
 import { Loading } from "../components/ui";
 import { usePrefs } from "../prefs";
 import { WEB_ORIGIN } from "../config";
-import { AcceptInviteScreen, ChangePasswordScreen, ForgotPasswordScreen, LockScreen, LoginScreen, ResetPasswordScreen } from "../screens/Auth";
+import {
+  AcceptInviteScreen,
+  ChangePasswordScreen,
+  ForgotPasswordScreen,
+  LockScreen,
+  LoginScreen,
+  ResetPasswordScreen,
+} from "../screens/Auth";
 import { BoardScreen } from "../screens/Board";
 import { DelegationsScreen, MyTasksScreen, ReviewScreen } from "../screens/Lists";
 import { TaskDetailScreen } from "../screens/TaskDetail";
 import { DashboardScreen, ProfileScreen } from "../screens/TabScreens";
 import { SearchScreen, SecurityScreen } from "../screens/CreateSearchSecurity";
-import { AuditScreen, TicketDetailScreen, TicketsScreen, UsersScreen } from "../screens/MoreScreens";
+import {
+  AuditScreen,
+  TicketDetailScreen,
+  TicketsScreen,
+  UsersScreen,
+} from "../screens/MoreScreens";
 import type { AuthStackParams, MainStackParams } from "./types";
 
 const AuthStack = createNativeStackNavigator<AuthStackParams>();
@@ -27,7 +44,13 @@ const linking: LinkingOptions<AuthStackParams> = {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function inShell<P extends object>(C: React.ComponentType<P>, active: keyof MainStackParams) {
-  return function Wrapped(props: P) { return <Shell active={active}><C {...props} /></Shell>; };
+  return function Wrapped(props: P) {
+    return (
+      <Shell active={active}>
+        <C {...props} />
+      </Shell>
+    );
+  };
 }
 const Dashboard = inShell(DashboardScreen, "Dashboard");
 const Profile = inShell(ProfileScreen, "Profile");
@@ -49,12 +72,20 @@ function MainNavigator() {
         <MainStack.Screen name="Review" component={ReviewScreen} />
         <MainStack.Screen name="Dashboard" component={Dashboard} />
         <MainStack.Screen name="Profile" component={Profile} />
-        <MainStack.Screen name="TaskDetail" component={TaskDetailScreen} options={{ animation: "slide_from_right" }} />
+        <MainStack.Screen
+          name="TaskDetail"
+          component={TaskDetailScreen}
+          options={{ animation: "slide_from_right" }}
+        />
         <MainStack.Screen name="Search" component={Search} />
         <MainStack.Screen name="Security" component={Security} />
         <MainStack.Screen name="ChangePassword" component={ChangePw} />
         <MainStack.Screen name="Tickets" component={Tickets} />
-        <MainStack.Screen name="TicketDetail" component={TicketDetail} options={{ animation: "slide_from_right" }} />
+        <MainStack.Screen
+          name="TicketDetail"
+          component={TicketDetail}
+          options={{ animation: "slide_from_right" }}
+        />
         <MainStack.Screen name="Users" component={Users} />
         <MainStack.Screen name="Audit" component={Audit} />
       </MainStack.Navigator>
@@ -66,7 +97,17 @@ export function RootNavigator() {
   const { status, user } = useAuth();
   const { palette: c, theme } = usePrefs();
   const base = theme === "light" ? DefaultTheme : DarkTheme;
-  const navTheme = { ...base, colors: { ...base.colors, background: c.app, card: c.panel, text: c.primary, border: c.border, primary: c.accent } };
+  const navTheme = {
+    ...base,
+    colors: {
+      ...base.colors,
+      background: c.app,
+      card: c.panel,
+      text: c.primary,
+      border: c.border,
+      primary: c.accent,
+    },
+  };
 
   let body: React.ReactNode;
   if (status === "loading") body = <Loading />;
@@ -83,5 +124,9 @@ export function RootNavigator() {
   } else if (user?.mustChangePassword) body = <ChangePasswordScreen forced />;
   else body = <MainNavigator />;
 
-  return <NavigationContainer theme={navTheme} linking={linking}>{body}</NavigationContainer>;
+  return (
+    <NavigationContainer theme={navTheme} linking={linking}>
+      {body}
+    </NavigationContainer>
+  );
 }

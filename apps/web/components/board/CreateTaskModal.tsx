@@ -46,7 +46,7 @@ function SearchableSelect({
   }, []);
 
   const filteredOptions = options.filter((opt) =>
-    opt.label.toLowerCase().includes(search.toLowerCase())
+    opt.label.toLowerCase().includes(search.toLowerCase()),
   );
 
   const selectedLabel = options.find((o) => o.id === value)?.label;
@@ -74,9 +74,7 @@ function SearchableSelect({
           {selectedLabel || placeholder}
         </span>
         <ChevronDown
-          className={`h-4 w-4 text-[#64748B] transition-transform ${
-            isOpen ? "rotate-180" : ""
-          }`}
+          className={`h-4 w-4 text-[#64748B] transition-transform ${isOpen ? "rotate-180" : ""}`}
         />
       </button>
 
@@ -140,9 +138,7 @@ export function CreateTaskModal({
   const [priority, setPriority] = useState<Priority>("MEDIUM");
   const [dueDate, setDueDate] = useState("");
   const [ownerId, setOwnerId] = useState("");
-  const [assignable, setAssignable] = useState<Pick<User, "id" | "fullName" | "role">[]>(
-    []
-  );
+  const [assignable, setAssignable] = useState<Pick<User, "id" | "fullName" | "role">[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -270,7 +266,8 @@ export function CreateTaskModal({
               placeholder="Search and assign..."
             />
             <p className="text-[11px] text-[#94A3B8]">
-              Picking an officer assigns the task immediately and notifies them. A due date is then required.
+              Picking an officer assigns the task immediately and notifies them. A due date is then
+              required.
             </p>
           </div>
         )}

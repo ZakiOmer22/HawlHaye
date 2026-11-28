@@ -1,7 +1,7 @@
 // apps/api/src/modules/tasks/service.ts
 import type { Prisma, Task } from "@prisma/client";
 import type { Request } from "express"; // Import Request type
-import { canTransition } from "@hawl/shared";
+import { canTransition, COORDINATORS_CAN_ASSIGN } from "@hawl/shared";
 import { prisma } from "../../lib/prisma";
 import { HttpError } from "../../middleware/errors";
 import { emitNotification, emitBoardChanged } from "../../lib/events";
@@ -12,7 +12,8 @@ type AuthedUser = NonNullable<Express.Request["user"]>;
 /** Dean + Deputy have full oversight. NOTE: ADMINISTRATOR is deliberately NOT here any more: per the
  *  CECIT hierarchy chart, administrators only see their own tasks and tasks shared by their coordinators. */
 const FULL_OVERSIGHT = ["DEAN", "DEPUTY"] as const;
-const hasFullOversight = (role: string): boolean => (FULL_OVERSIGHT as readonly string[]).includes(role);
+const hasFullOversight = (role: string): boolean =>
+  (FULL_OVERSIGHT as readonly string[]).includes(role);
 
 /**
  * Task visibility, per the CECIT "Task Visibility and Oversight" chart:
@@ -65,6 +66,7 @@ export async function assignableUsersFor(actor: AuthedUser): Promise<AssignableU
   if (hasFullOversight(actor.role)) {
     return prisma.user.findMany({ where: { active: true }, select, orderBy: { fullName: "asc" } });
   }
+  if (!COORDINATORS_CAN_ASSIGN) return []; // rule A: only Dean and Deputy assign
   if (actor.role === "LABS_COORDINATOR") {
     return prisma.user.findMany({
       where: { active: true, OR: [{ id: actor.id }, { supervisorId: actor.id }] },
@@ -123,7 +125,11 @@ export async function createTask(
   req?: Request, // Fixed: Changed from any to Request
 ): Promise<Task> {
   if (input.ownerId) {
-    const check = canTransition(actor, { status: "UNASSIGNED", ownerId: null, delegateId: null }, "ASSIGNED");
+    const check = canTransition(
+      actor,
+      { status: "UNASSIGNED", ownerId: null, delegateId: null },
+      "ASSIGNED",
+    );
     if (!check.ok) throw new HttpError(403, "You are not allowed to assign tasks", "forbidden");
     await assertCanAssignTo(actor, input.ownerId);
   }

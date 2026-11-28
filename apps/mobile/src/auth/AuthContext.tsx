@@ -1,10 +1,22 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AppState } from "react-native";
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 import { Api } from "../api/endpoints";
 import {
-  ApiError, loadCsrf, setCsrf, setPasswordChangeHandler, setSessionLostHandler,
+  ApiError,
+  loadCsrf,
+  setCsrf,
+  setPasswordChangeHandler,
+  setSessionLostHandler,
 } from "../api/client";
 import type { Me } from "../api/types";
 import { LOCK_AFTER_MS } from "../config";
@@ -160,7 +172,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const setBioEnabled = useCallback(async (on: boolean) => {
     if (on) {
-      const r = await LocalAuthentication.authenticateAsync({ promptMessage: "Confirm to enable app lock" });
+      const r = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Confirm to enable app lock",
+      });
       if (!r.success) return false;
       await SecureStore.setItemAsync(BIO_KEY, "1");
     } else {
@@ -173,10 +187,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AuthValue>(
     () => ({
-      status, user, bioAvailable, bioEnabled, login, complete2FA, completeInvite,
-      logout, refresh, unlock, setBioEnabled,
+      status,
+      user,
+      bioAvailable,
+      bioEnabled,
+      login,
+      complete2FA,
+      completeInvite,
+      logout,
+      refresh,
+      unlock,
+      setBioEnabled,
     }),
-    [status, user, bioAvailable, bioEnabled, login, complete2FA, completeInvite, logout, refresh, unlock, setBioEnabled],
+    [
+      status,
+      user,
+      bioAvailable,
+      bioEnabled,
+      login,
+      complete2FA,
+      completeInvite,
+      logout,
+      refresh,
+      unlock,
+      setBioEnabled,
+    ],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

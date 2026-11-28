@@ -52,7 +52,11 @@ export interface Me {
   createdAt: string;
   lastLoginAt: string | null;
   twoFAStatus?: { enforcement: "n/a" | "active" | "warning" | "blocked"; daysLeft: number | null };
-  branding?: { logoUrl?: string | null; primaryColor?: string | null; universityName?: string | null };
+  branding?: {
+    logoUrl?: string | null;
+    primaryColor?: string | null;
+    universityName?: string | null;
+  };
   permissions?: Record<string, boolean>;
 }
 
@@ -167,22 +171,63 @@ export interface Summary {
   avgCompletionDays: number;
   onTimeRate: number;
   byStatus: Partial<Record<TaskStatus, number>>;
-  workload: { id: string; name: string; total: number; active: number; blocked: number; review: number }[];
-  blockedTasks: { id: string; code: string; title: string; reason: string | null; days: number; owner: string }[];
+  workload: {
+    id: string;
+    name: string;
+    total: number;
+    active: number;
+    blocked: number;
+    review: number;
+  }[];
+  blockedTasks: {
+    id: string;
+    code: string;
+    title: string;
+    reason: string | null;
+    days: number;
+    owner: string;
+  }[];
   pendingReview: { id: string; code: string; title: string; days: number; owner: string }[];
 }
 
 export type TicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
-export interface TicketReply { id: string; message: string; createdAt: string; author: { id: string; fullName: string; role: Role } }
+export interface TicketReply {
+  id: string;
+  message: string;
+  createdAt: string;
+  author: { id: string; fullName: string; role: Role };
+}
 export interface Ticket {
-  id: string; subject: string; description: string; status: TicketStatus; priority: Priority;
-  category: string; createdAt: string; updatedAt: string;
+  id: string;
+  subject: string;
+  description: string;
+  status: TicketStatus;
+  priority: Priority;
+  category: string;
+  createdAt: string;
+  updatedAt: string;
   createdBy?: { id: string; fullName: string; role: Role };
   replies?: TicketReply[];
 }
-export interface AdminUser extends UserLite { officeId: string | null; active: boolean; lastLoginAt: string | null; createdAt: string }
-export interface AuditRow {
-  id: string; action: string; entityType: string | null; entityId: string | null;
-  ip: string | null; createdAt: string; actor?: { id: string; fullName: string; role: Role } | null;
+export interface AdminUser extends UserLite {
+  officeId: string | null;
+  active: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
 }
-export interface PendingInvite { id: string; email: string; role: Role; expiresAt: string; invitedBy?: { fullName: string } | null }
+export interface AuditRow {
+  id: string;
+  action: string;
+  entityType: string | null;
+  entityId: string | null;
+  ip: string | null;
+  createdAt: string;
+  actor?: { id: string; fullName: string; role: Role } | null;
+}
+export interface PendingInvite {
+  id: string;
+  email: string;
+  role: Role;
+  expiresAt: string;
+  invitedBy?: { fullName: string } | null;
+}

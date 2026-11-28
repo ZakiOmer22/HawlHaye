@@ -5,7 +5,17 @@ import { api, ApiError } from "@/lib/api";
 import type { User } from "@/lib/types";
 import { useBoardRealtime } from "@/lib/realtime";
 import {
-  AlertCircle, CheckCircle2, Clock, FileText, Loader2, RefreshCw, Search, ChevronDown
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  FileText,
+  Loader2,
+  RefreshCw,
+  Search,
+  ChevronDown,
+  Inbox,
+  Paperclip,
+  UploadCloud,
 } from "lucide-react";
 
 // ── API shapes ─────────────────────────────────────────────────
@@ -15,6 +25,7 @@ type Report = {
   body: string;
   submittedAt: string;
   late: boolean;
+  attachmentUrl?: string; // Added this
 };
 
 type MyReportState = {
@@ -93,7 +104,24 @@ export default function DailyReportPage() {
   if (user.role === "DEAN" || user.role === "DEPUTY") {
     return <OverviewView />;
   }
-  return <Notice tone="info">Daily reports are submitted by coordinators and reviewed by the Dean and Deputy Dean.</Notice>;
+
+  // Fallback for roles that don't submit/review (e.g. Admin, Lab Tech)
+  return (
+    <div className="w-full max-w-3xl mx-auto p-4 md:p-8 space-y-6">
+      <div className="rounded-3xl border border-dashed border-[#334155] bg-[#1E293B]/50 p-16 text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#0F172A] border border-[#334155] shadow-inner">
+          <Inbox className="h-8 w-8 text-[#64748B]" />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2">Access Restricted</h2>
+        <p className="text-sm text-[#94A3B8] max-w-md mx-auto leading-relaxed">
+          Daily reports are only accessible to <strong>Faculty Coordinators</strong>,{" "}
+          <strong>Labs Coordinators</strong>, the <strong>Dean</strong>, and the{" "}
+          <strong>Deputy Dean</strong>. Your current role ({user.role.replace(/_/g, " ")}) does not
+          have access to this page.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 // ── Coordinator: write today's report ──────────────────────────
@@ -103,6 +131,7 @@ function CoordinatorView() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [attachment, setAttachment] = useState<File | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -125,8 +154,15 @@ function CoordinatorView() {
     setError(null);
     setSaved(false);
     try {
-      await api("/daily-reports/me", { method: "PUT", body: JSON.stringify({ body }) });
+      await api("/daily-reports/me", {
+        method: "PUT",
+        body: JSON.stringify({
+          body,
+          attachmentUrl: attachment ? `uploads/${attachment.name}` : undefined,
+        }),
+      });
       setSaved(true);
+      setAttachment(null);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not save your report.");
@@ -154,7 +190,8 @@ function CoordinatorView() {
           <p>
             {state.requiredToday ? (
               <>
-                Your academic report is due every day by <strong className="text-primary">{timeFmt.format(new Date(state.deadline))}</strong>{" "}
+                Your academic report is due every day by{" "}
+                <strong className="text-primary">{timeFmt.format(new Date(state.deadline))}</strong>{" "}
                 (Hargeisa time), except Fridays.
               </>
             ) : (
@@ -164,11 +201,17 @@ function CoordinatorView() {
         </div>
       </div>
 
-      <form onSubmit={submit} className="space-y-4 rounded-2xl border border-border bg-panel p-5 shadow-sm">
+      <form
+        onSubmit={submit}
+        className="space-y-4 rounded-2xl border border-border bg-panel p-5 shadow-sm"
+      >
         {error && <Notice tone="error">{error}</Notice>}
 
         <div className="space-y-2">
-          <label htmlFor="report-body" className="text-[10px] font-bold uppercase tracking-wider text-muted">
+          <label
+            htmlFor="report-body"
+            className="text-[10px] font-bold uppercase tracking-wider text-muted"
+          >
             Today&apos;s academic report
           </label>
           <textarea
@@ -182,6 +225,42 @@ function CoordinatorView() {
             placeholder="Briefly summarise today's academic activities, issues that need attention, and plans for tomorrow…"
             className="w-full rounded-xl border border-border bg-app px-4 py-3 text-sm text-primary outline-none transition focus:border-accent"
           />
+        </div>
+
+        {/* File Upload Area */}
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-muted">
+            Attach Document (Optional)
+          </label>
+          <div className="flex items-center gap-3 rounded-xl border border-dashed border-border bg-app/50 p-4 transition hover:border-accent/50 hover:bg-app">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+              <UploadCloud size={20} />
+            </div>
+            <div className="flex-1">
+              <input
+                type="file"
+                id="file-upload"
+                className="hidden"
+                onChange={(e) => setAttachment(e.target.files?.[0] || null)}
+              />
+              <label
+                htmlFor="file-upload"
+                className="cursor-pointer text-sm font-bold text-primary hover:text-accent"
+              >
+                {attachment ? attachment.name : "Click to upload a file"}
+              </label>
+              <p className="text-xs text-muted mt-1">PDF, DOCX, or XLSX up to 5MB</p>
+            </div>
+            {attachment && (
+              <button
+                type="button"
+                onClick={() => setAttachment(null)}
+                className="text-xs font-bold text-red-400 hover:text-red-500"
+              >
+                Remove
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-3 pt-2">
@@ -217,10 +296,18 @@ function CoordinatorView() {
           <h2 className="text-sm font-black uppercase tracking-wider text-muted">Recent reports</h2>
           <div className="grid gap-3">
             {state.history.map((r) => (
-              <details key={r.id} className="group rounded-2xl border border-border bg-panel overflow-hidden transition-all duration-200 open:border-accent/40 open:shadow-md open:shadow-accent/5">
+              <details
+                key={r.id}
+                className="group rounded-2xl border border-border bg-panel overflow-hidden transition-all duration-200 open:border-accent/40 open:shadow-md open:shadow-accent/5"
+              >
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 hover:bg-app/50 transition-colors [&::-webkit-details-marker]:hidden">
                   <div className="flex items-center gap-3">
                     <span className="font-bold text-primary">{prettyDate(r.reportDate)}</span>
+                    {r.attachmentUrl && (
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded border border-blue-400/20">
+                        <Paperclip size={10} /> Attachment
+                      </span>
+                    )}
                     {r.late && (
                       <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase text-amber-500">
                         Late
@@ -230,7 +317,9 @@ function CoordinatorView() {
                   <ChevronDown className="h-4 w-4 text-muted transition-transform duration-200 group-open:rotate-180" />
                 </summary>
                 <div className="border-t border-border bg-app/30 p-4">
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-primary">{r.body}</p>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-primary">
+                    {r.body}
+                  </p>
                 </div>
               </details>
             ))}
@@ -281,8 +370,9 @@ function OverviewView() {
   const filteredCoordinators = useMemo(() => {
     if (!state) return [];
     return state.coordinators.filter((c) => {
-      const matchesSearch = c.fullName.toLowerCase().includes(search.toLowerCase()) ||
-                            (c.office?.name || "").toLowerCase().includes(search.toLowerCase());
+      const matchesSearch =
+        c.fullName.toLowerCase().includes(search.toLowerCase()) ||
+        (c.office?.name || "").toLowerCase().includes(search.toLowerCase());
       const matchesFilter = filter === "ALL" || c.status === filter;
       return matchesSearch && matchesFilter;
     });
@@ -308,7 +398,10 @@ function OverviewView() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl border border-border bg-panel p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <label htmlFor="report-date" className="text-[10px] font-bold uppercase tracking-wider text-muted">
+            <label
+              htmlFor="report-date"
+              className="text-[10px] font-bold uppercase tracking-wider text-muted"
+            >
               Date
             </label>
             <input
@@ -323,7 +416,8 @@ function OverviewView() {
             />
           </div>
           <div className="flex gap-2 text-xs text-muted border-l border-border pl-3">
-            <span>{counts.SUBMITTED + counts.LATE} submitted</span>·<span>{counts.MISSING} missing</span>
+            <span>{counts.SUBMITTED + counts.LATE} submitted</span>·
+            <span>{counts.MISSING} missing</span>
           </div>
         </div>
 
@@ -357,44 +451,72 @@ function OverviewView() {
 
       {!state.required && <Notice tone="info">Friday: daily reports are not required.</Notice>}
 
-      <div className="space-y-3">
-        {filteredCoordinators.map((c) => (
-          <div key={c.id} className="rounded-2xl border border-border bg-panel p-5 transition hover:border-accent/30 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="font-bold text-primary text-lg">{c.fullName}</p>
-                <p className="text-xs text-muted font-medium">
-                  {ROLE_LABEL[c.role] ?? c.role}
-                  {c.office?.name ? ` · ${c.office.name}` : ""}
-                </p>
-              </div>
-              <span className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLE[c.status]}`}>
-                {STATUS_LABEL[c.status]}
-                {c.report && ` · ${timeFmt.format(new Date(c.report.submittedAt))}`}
-              </span>
-            </div>
-
-            {c.report && (
-              <div className="mt-4 rounded-xl bg-app/50 p-4 border border-border/50">
-                <p className="whitespace-pre-wrap text-sm text-primary leading-relaxed">{c.report.body}</p>
-              </div>
-            )}
+      {filteredCoordinators.length === 0 ? (
+        <div className="rounded-3xl border border-dashed border-[#334155] bg-[#1E293B]/50 p-16 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#0F172A] border border-[#334155] shadow-inner">
+            <Inbox className="h-8 w-8 text-[#64748B]" />
           </div>
-        ))}
-
-        {filteredCoordinators.length === 0 && (
-          <Notice tone="info">
+          <h2 className="text-xl font-bold text-white mb-2">
+            {search || filter !== "ALL" ? "No results found" : "No coordinators yet"}
+          </h2>
+          <p className="text-sm text-[#94A3B8] max-w-sm mx-auto leading-relaxed">
             {search || filter !== "ALL"
-              ? "No coordinators match your search or filter criteria."
-              : "No coordinator accounts yet."}
-          </Notice>
-        )}
-      </div>
+              ? "Try adjusting your search or filters to find what you're looking for."
+              : "There are no coordinator accounts to display at this time."}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredCoordinators.map((c) => (
+            <div
+              key={c.id}
+              className="rounded-2xl border border-border bg-panel p-5 transition hover:border-accent/30 shadow-sm"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="font-bold text-primary text-lg">{c.fullName}</p>
+                  <p className="text-xs text-muted font-medium">
+                    {ROLE_LABEL[c.role] ?? c.role}
+                    {c.office?.name ? ` · ${c.office.name}` : ""}
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${STATUS_STYLE[c.status]}`}
+                >
+                  {STATUS_LABEL[c.status]}
+                  {c.report && ` · ${timeFmt.format(new Date(c.report.submittedAt))}`}
+                </span>
+              </div>
+
+              {c.report && (
+                <div className="mt-4 rounded-xl bg-app/50 p-4 border border-border/50">
+                  <p className="whitespace-pre-wrap text-sm text-primary leading-relaxed">
+                    {c.report.body}
+                  </p>
+                  {c.report.attachmentUrl && (
+                    <div className="mt-3 flex items-center gap-1 text-xs font-bold text-accent hover:underline cursor-pointer">
+                      <Paperclip size={12} /> View Attached Document
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function Header({ title, subtitle, onRefresh }: { title: string; subtitle: string; onRefresh: () => void }) {
+function Header({
+  title,
+  subtitle,
+  onRefresh,
+}: {
+  title: string;
+  subtitle: string;
+  onRefresh: () => void;
+}) {
   return (
     <div className="flex items-end justify-between gap-4">
       <div>

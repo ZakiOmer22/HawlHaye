@@ -172,7 +172,8 @@ export default function TaskDetailPage() {
   const getActions = () => {
     if (!task || !currentUser) return [];
     const role = currentUser.role;
-    const isLeadership = ["DEAN", "DEPUTY", "ADMINISTRATOR"].includes(role);
+    // Dean and Deputy only: the system administrator does not run College work (matches the server).
+    const isLeadership = ["DEAN", "DEPUTY"].includes(role);
     const isOwner = task.ownerId === currentUser.id;
 
     const actions: {
@@ -391,13 +392,14 @@ export default function TaskDetailPage() {
   const overdue = isOverdue(task.dueDate, task.status);
   const actions = getActions();
 
-  const isLeadership = ["DEAN", "DEPUTY", "ADMINISTRATOR"].includes(currentUser.role);
+  const isLeadership = ["DEAN", "DEPUTY"].includes(currentUser.role);
+  const isSysAdmin = currentUser.role === "ADMINISTRATOR";
 
   const canDelegate =
     (task.ownerId === currentUser.id || isLeadership) && task.status !== "COMPLETED";
 
-  const canDeleteTask = isLeadership;
-  const canDeleteAttachment = isLeadership || task.ownerId === currentUser.id;
+  const canDeleteTask = isSysAdmin || currentUser.role === "DEAN"; // same as the server rule
+  const canDeleteAttachment = isLeadership || isSysAdmin || task.ownerId === currentUser.id;
 
   let gcalLink = "";
   if (task.dueDate) {

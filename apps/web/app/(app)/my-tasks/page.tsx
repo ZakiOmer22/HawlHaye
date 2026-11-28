@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { canCreateTasks } from "@/lib/permissions";
 import { api, ApiError } from "@/lib/api";
 import type { Task, TaskStatus, User } from "@/lib/types";
 import { formatDate, isOverdue } from "@/lib/format";
@@ -166,7 +167,7 @@ export default function MyTasksPage() {
   }, [filteredTasks]);
 
   const totalVisible = filteredTasks.length;
-  const canCreateTask = user?.role !== "LAB_TECHNICIAN";
+  const canCreateTask = user ? canCreateTasks(user.role) : false;
 
   if (error && !tasks) {
     return (

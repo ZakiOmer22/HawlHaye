@@ -31,21 +31,34 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[] = [], live = tr
         setError(e instanceof ApiError ? e.message : "Something went wrong");
       }
     } finally {
-      if (my === seq.current) { setLoading(false); setRefreshing(false); }
+      if (my === seq.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useFocusEffect(useCallback(() => { void run("initial"); }, [run, ...deps]));
+  useFocusEffect(
+    useCallback(() => {
+      void run("initial");
+    }, [run, ...deps]),
+  );
   const first = useRef(true);
   useEffect(() => {
-    if (first.current) { first.current = false; return; }
+    if (first.current) {
+      first.current = false;
+      return;
+    }
     if (live) void run("silent");
   }, [boardVersion, live, run]);
 
   return {
-    data, error, loading, refreshing,
+    data,
+    error,
+    loading,
+    refreshing,
     reload: () => run("pull"),
     silentReload: () => run("silent"),
     setData,

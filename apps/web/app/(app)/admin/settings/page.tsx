@@ -170,11 +170,14 @@ export default function GlobalSettingsPage() {
       formData.append("logo", file);
 
       // USE NATIVE FETCH TO PREVENT JSON CONTENT-TYPE HEADER CONFLICT
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1"}/admin/settings/logo`, {
-        method: "POST",
-        body: formData,
-        credentials: "include", // send cookies
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1"}/admin/settings/logo`,
+        {
+          method: "POST",
+          body: formData,
+          credentials: "include", // send cookies
+        },
+      );
 
       if (!res.ok) {
         throw new Error("Upload failed");
@@ -348,7 +351,10 @@ export default function GlobalSettingsPage() {
                         </div>
                         {/* FALLBACK: PASTE URL */}
                         <div className="relative">
-                          <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
+                          <LinkIcon
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+                            size={16}
+                          />
                           <input
                             type="url"
                             placeholder="Or paste an image URL (works on Render)"
