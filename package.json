@@ -4,7 +4,7 @@
   "private": true,
   "description": "HAWL - CECIT College Task Management System",
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "workspaces": [
     "packages/*",
