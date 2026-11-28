@@ -146,10 +146,19 @@ function hexToRgb(hex: string) {
 // (File must be shared as "Anyone with the link".)
 function resolveLogoUrl(url?: string | null) {
   if (!url) return DEFAULT_LOGO;
-  if (url.includes("drive.google.com")) {
-    const m = url.match(/\/file\/d\/([^/?#]+)/) || url.match(/[?&]id=([^&#]+)/);
-    if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w400`;
+
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === "drive.google.com") {
+      const pathMatch = parsed.pathname.match(/\/file\/d\/([^/?#]+)/);
+      const queryId = parsed.searchParams.get("id");
+      const fileId = pathMatch?.[1] || queryId;
+      if (fileId) return `https://drive.google.com/thumbnail?id=${fileId}&sz=w400`;
+    }
+  } catch {
+    // Non-URL input or relative URL: keep original behavior and return as-is.
   }
+
   return url;
 }
 
