@@ -1,3 +1,4 @@
+
 name: CI
 
 on:
@@ -12,7 +13,7 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     services:
       postgres:
@@ -43,7 +44,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Secret scan (Gitleaks)
@@ -60,10 +61,13 @@ jobs:
       - name: Push test database schema
         run: npx prisma db push --schema=apps/api/prisma/schema.prisma
 
+      # Build the shared workspace before running API scripts.
+      - name: Build shared workspace
+        run: npm run build -w @hawl/shared
+
       - name: Seed test database
         run: npm run db:seed -w @hawl/api
 
-      # Format first, then validate formatting.
       - name: Format code
         run: npm run format
 
@@ -79,7 +83,7 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Build
+      - name: Build all workspaces
         run: npm run build
 
       - name: Dependency audit (production dependencies - critical)
