@@ -1,4 +1,5 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -33,6 +34,11 @@ import { errorHandler } from "./errors";
 
 function app() {
   const a = express();
+  const uploadsLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+  });
+  a.use("/uploads", uploadsLimiter);
   a.use("/uploads", uploadsGuard);
   a.use("/uploads", (_req, res) => res.status(200).send("FILE-BYTES")); // stands in for express.static
   a.use(errorHandler);
