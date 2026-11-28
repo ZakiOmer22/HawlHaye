@@ -1,3 +1,4 @@
+import { COORDINATORS_CAN_ASSIGN } from "./roles";
 import { describe, expect, it } from "vitest";
 import { canTransition, formatTaskCode, isOverdue, transitionSchema } from "./index";
 
@@ -13,7 +14,7 @@ const task = (status: Parameters<typeof canTransition>[1]["status"]) => ({
 describe("workflow", () => {
   it("only leadership assigns", () => {
     expect(canTransition(dean, task("UNASSIGNED"), "ASSIGNED").ok).toBe(true);
-    expect(canTransition(coord, task("UNASSIGNED"), "ASSIGNED").ok).toBe(true);
+    expect(canTransition(coord, task("UNASSIGNED"), "ASSIGNED").ok).toBe(COORDINATORS_CAN_ASSIGN);
     expect(canTransition(tech, task("UNASSIGNED"), "ASSIGNED").ok).toBe(false);
   });
   it("only leadership accepts from review", () => {

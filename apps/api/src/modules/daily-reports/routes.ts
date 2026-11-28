@@ -35,7 +35,9 @@ function isFriday(dateStr: string): boolean {
 
 /** 19:00 local on dateStr, expressed as a UTC instant. */
 function deadlineFor(dateStr: string): Date {
-  return new Date(`${dateStr}T${String(DUE_HOUR_LOCAL - UTC_OFFSET_HOURS).padStart(2, "0")}:00:00Z`);
+  return new Date(
+    `${dateStr}T${String(DUE_HOUR_LOCAL - UTC_OFFSET_HOURS).padStart(2, "0")}:00:00Z`,
+  );
 }
 
 function validDate(s: unknown): s is string {
@@ -81,8 +83,17 @@ dailyReportsRouter.put(
 
     const report = await prisma.dailyReport.upsert({
       where: { authorId_reportDate: { authorId: req.user!.id, reportDate: today } },
-      create: { authorId: req.user!.id, reportDate: today, body: input.body, late },
-      update: { body: input.body },
+      create: {
+        authorId: req.user!.id,
+        reportDate: today,
+        body: input.body,
+        attachmentUrl: input.attachmentUrl, // Added attachmentUrl here
+        late,
+      },
+      update: {
+        body: input.body,
+        attachmentUrl: input.attachmentUrl, // Added attachmentUrl here
+      },
     });
     await writeAudit({
       actorId: req.user!.id,

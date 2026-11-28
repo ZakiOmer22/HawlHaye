@@ -18,6 +18,7 @@ export interface User {
   fullName: string;
   role: Role;
   officeId: string | null;
+  supervisorId?: string | null;
 }
 
 export interface Category {

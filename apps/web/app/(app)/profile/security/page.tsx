@@ -81,10 +81,13 @@ export default function SecuritySettingsPage() {
         setActionBusy(true);
         setError(null);
         try {
-          const res = await api<{ data: { secret: string; qrCodeUrl: string } }>("/auth/2fa/setup", {
-            method: "POST",
-            body: JSON.stringify({ password }),
-          });
+          const res = await api<{ data: { secret: string; qrCodeUrl: string } }>(
+            "/auth/2fa/setup",
+            {
+              method: "POST",
+              body: JSON.stringify({ password }),
+            },
+          );
           setSetupData(res.data);
           setPasswordModal((prev) => ({ ...prev, isOpen: false }));
         } catch (err) {
@@ -155,7 +158,7 @@ export default function SecuritySettingsPage() {
             "/auth/passkeys/register/options",
             {
               cache: "no-store",
-              headers: { "X-Confirm-Password": password }
+              headers: { "X-Confirm-Password": password },
             },
           );
 
@@ -200,7 +203,7 @@ export default function SecuritySettingsPage() {
         try {
           await api(`/auth/passkeys/${id}`, {
             method: "DELETE",
-            headers: { "X-Confirm-Password": password }
+            headers: { "X-Confirm-Password": password },
           });
           setPasskeys((prev) => prev.filter((p) => p.id !== id));
           setSuccessMsg("Passkey removed.");

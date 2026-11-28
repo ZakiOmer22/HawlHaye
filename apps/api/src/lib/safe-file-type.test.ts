@@ -3,7 +3,10 @@ import { safeFromBuffer } from "./safe-file-type";
 
 describe("safeFromBuffer", () => {
   it("refuses ASF containers before they reach the vulnerable parser (GHSA-5v7r-6r5c-r473)", async () => {
-    const asf = Buffer.concat([Buffer.from("3026b2758e66cf11a6d900aa0062ce6c", "hex"), Buffer.alloc(64)]);
+    const asf = Buffer.concat([
+      Buffer.from("3026b2758e66cf11a6d900aa0062ce6c", "hex"),
+      Buffer.alloc(64),
+    ]);
     await expect(safeFromBuffer(asf)).resolves.toBeUndefined();
   });
 

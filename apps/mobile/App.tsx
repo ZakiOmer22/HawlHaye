@@ -2,13 +2,16 @@ import React from "react";
 import { View, StatusBar } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import {
-  useFonts, PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold,
-  PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold,
+  useFonts,
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
 } from "@expo-google-fonts/plus-jakarta-sans";
 import { AuthProvider } from "./src/auth/AuthContext";
 import { PrefsProvider, usePrefs } from "./src/prefs";
 import { RootNavigator } from "./src/navigation/RootNavigator";
-
 
 function Root() {
   const { isRtl, palette } = usePrefs();
@@ -23,11 +26,13 @@ function Root() {
   );
 }
 
-
 export default function App() {
   const [loaded] = useFonts({
-    PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold,
-    PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold,
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+    PlusJakartaSans_800ExtraBold,
   });
   if (!loaded) return null;
   return (

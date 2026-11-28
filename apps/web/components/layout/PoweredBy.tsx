@@ -35,14 +35,14 @@ export function PoweredBy() {
           <div className="hidden items-center gap-6 md:flex">
             <a
               className="font-semibold text-[#A0ABC0] transition-colors duration-200 hover:text-[#e8bc69] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#e8bc69] rounded px-1"
-              href="#"
+              href="/about"
             >
               About Us
             </a>
             <div className="h-4 w-px bg-[#2A3754]" aria-hidden="true" />
             <a
               className="font-semibold text-[#A0ABC0] transition-colors duration-200 hover:text-[#e8bc69] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#e8bc69] rounded px-1"
-              href="#"
+              href="/contact"
             >
               Contact
             </a>
@@ -53,7 +53,7 @@ export function PoweredBy() {
               aria-hidden="true"
             />
             <span className="font-mono text-xs font-bold tracking-widest text-[#A0ABC0]">
-              v2.1.0
+              v4.1.0
             </span>
           </div>
         </div>

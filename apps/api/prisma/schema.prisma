@@ -210,6 +210,7 @@ model DailyReport {
   submittedAt DateTime @default(now())
   late        Boolean  @default(false)
   updatedAt   DateTime @updatedAt
+  attachmentUrl String?
 
   @@unique([authorId, reportDate])
   @@index([reportDate])

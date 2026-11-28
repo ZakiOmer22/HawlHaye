@@ -5,6 +5,9 @@ import { getSystemSettings } from "./settings";
 import { hashToken } from "../lib/tokens";
 import { SESSION_COOKIE } from "../lib/cookies";
 
+// Roles that may keep working while the system is in maintenance mode.
+const MAINTENANCE_BYPASS_ROLES = new Set(["ADMINISTRATOR", "DEAN", "DEPUTY"]);
+
 export const checkMaintenance: RequestHandler = async (req, _res, next) => {
   if (req.path.startsWith("/api/v1/auth") || req.path === "/health") {
     return next();
@@ -18,12 +21,22 @@ export const checkMaintenance: RequestHandler = async (req, _res, next) => {
     if (token) {
       const session = await prisma.session.findUnique({
         where: { tokenHash: hashToken(token) },
-        include: { user: { select: { role: true } } },
+        select: {
+          revokedAt: true,
+          expiresAt: true,
+          user: { select: { role: true, active: true } },
+        },
       });
 
-      // 🚀 ALLOW DEAN & DEPUTY TO BYPASS
-      const allowedRoles = ["ADMINISTRATOR", "DEAN", "DEPUTY"];
-      if (session?.user.role && allowedRoles.includes(session.user.role)) {
+      // The bypass only counts for a LIVE session of an ACTIVE user. Previously a revoked or
+      // expired session of an admin (e.g. after logout) could still skip maintenance mode.
+      const live =
+        !!session &&
+        !session.revokedAt &&
+        session.expiresAt.getTime() > Date.now() &&
+        session.user.active;
+
+      if (live && MAINTENANCE_BYPASS_ROLES.has(session.user.role)) {
         return next();
       }
     }

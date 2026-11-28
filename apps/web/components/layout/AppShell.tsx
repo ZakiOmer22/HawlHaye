@@ -78,6 +78,10 @@ const ExtendedLogo = Logo as React.ComponentType<
   React.ComponentProps<typeof Logo> & { logoUrl?: string; appName?: string }
 >;
 
+const DEFAULT_LOGO = "/uoh.png";
+const DEFAULT_UNI_NAME = "University of Hargeisa";
+const DEFAULT_PRIMARY = "#e8bc69";
+
 const ACADEMIC_NAV: NavItem[] = [
   { href: "/board", labelKey: "nav.board", icon: LayoutGrid, roles: ["ALL"] },
   { href: "/my-tasks", labelKey: "nav.myTasks", icon: CheckSquare, roles: ["ALL"] },
@@ -116,6 +120,7 @@ const SYSADMIN_DIRECT_NAV = [
 ];
 
 const MANAGEMENT_NAV = [
+  { href: "/admin/hierarchy", label: "Reporting Lines", icon: Users },
   { href: "/admin/offices", label: "Offices", icon: Building2 },
   { href: "/admin/categories", label: "Categories", icon: Tag },
   { href: "/admin/audit", label: "Audit Log", icon: ScrollText },
@@ -135,6 +140,17 @@ function hexToRgb(hex: string) {
   return result
     ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`
     : "232, 188, 105";
+}
+
+// Google Drive "share" links are HTML pages, not images. Convert them to a loadable image URL.
+// (File must be shared as "Anyone with the link".)
+function resolveLogoUrl(url?: string | null) {
+  if (!url) return DEFAULT_LOGO;
+  if (url.includes("drive.google.com")) {
+    const m = url.match(/\/file\/d\/([^/?#]+)/) || url.match(/[?&]id=([^&#]+)/);
+    if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w400`;
+  }
+  return url;
 }
 
 export function AppShell({
@@ -166,9 +182,9 @@ function ShellInner({
 
   const [user, setUser] = useState<AppUser>(initialUser);
   const branding = user.branding || {};
-  const primaryColor = branding.primaryColor || "#e8bc69";
-  const uniName = branding.universityName || "University of Hargeisa";
-  const logoUrl = branding.logoUrl || "/uoh.png";
+  const primaryColor = branding.primaryColor || DEFAULT_PRIMARY;
+  const uniName = branding.universityName || DEFAULT_UNI_NAME;
+  const logoUrl = resolveLogoUrl(branding.logoUrl);
   const userPermissions = user.permissions || {};
   const accentRgb = hexToRgb(primaryColor);
 
@@ -206,7 +222,8 @@ function ShellInner({
 
   const allowedManagementNav = MANAGEMENT_NAV.filter((item) => {
     if (user.role === "ADMINISTRATOR") return true;
-    if (Object.keys(userPermissions).length > 0) {
+    // Routes added after the permission matrix was saved (e.g. Reporting Lines) fall back to role rules.
+    if (Object.keys(userPermissions).length > 0 && item.href in userPermissions) {
       return userPermissions[item.href] === true;
     }
     return ["DEAN", "DEPUTY"].includes(user.role);
@@ -246,13 +263,19 @@ function ShellInner({
       try {
         const res = await api<{ data: AppUser }>("/auth/me");
         if (res.data) {
-          setUser(res.data);
+          setUser((prev) => ({
+            ...prev,
+            ...res.data,
+            // never let a sync wipe branding if /auth/me omits a field
+            branding: { ...(prev.branding ?? {}), ...(res.data.branding ?? {}) },
+          }));
           setImpersonation(res.data.impersonatedBy ?? null);
         }
       } catch {
         /* ignore */
       }
     };
+    syncUser(); // run once on mount so branding/permissions load immediately
     window.addEventListener("focus", syncUser);
     const interval = setInterval(syncUser, 30000);
     return () => {
@@ -412,12 +435,19 @@ function ShellInner({
               style={{ backgroundColor: primaryColor }}
             />
             <img
+              key={logoUrl}
               src={logoUrl}
               alt={uniName}
               className="relative h-8 sm:h-10 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
               onError={(e) => {
-                e.currentTarget.style.display = "none";
-                e.currentTarget.nextElementSibling?.classList.remove("hidden");
+                const img = e.currentTarget;
+                if (img.src.endsWith(DEFAULT_LOGO)) {
+                  // default logo also failed -> show the "UOH" text fallback
+                  img.style.display = "none";
+                  img.parentElement?.nextElementSibling?.classList.remove("hidden");
+                } else {
+                  img.src = DEFAULT_LOGO;
+                }
               }}
             />
           </div>
@@ -438,8 +468,8 @@ function ShellInner({
             className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-[var(--accent)] to-[#f1cf8b] px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-bold text-[#0F172A] shadow-[0_0_15px_rgba(var(--accent-rgb),0.3)] hover:shadow-[0_0_20px_rgba(var(--accent-rgb),0.5)] transition-all hover:-translate-y-0.5 flex-shrink-0"
           >
             <Mail size={14} className="sm:w-4 sm:h-4" />
-            <span className="hidden sm:inline">Contact Sales</span>
-            <span className="sm:hidden">Sales</span>
+            <span className="hidden sm:inline">Contact Publisher</span>
+            <span className="sm:hidden">Publisher</span>
           </button>
         )}
       </div>
