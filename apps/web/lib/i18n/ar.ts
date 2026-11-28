@@ -423,8 +423,7 @@ export const ar: Record<TranslationKey, string> = {
   "admin.categories.create.name": "اسم الفئة",
   "admin.categories.create.namePlaceholder": "مثال: دعم تقني",
   "admin.categories.create.color": "اللون",
-  "admin.categories.create.colorHint":
-    "اختر لونًا جاهزًا أو أدخل قيمة سداسية مخصصة (مثال #e8bc69).",
+  "admin.categories.create.colorHint": "اختر لونًا جاهزًا أو أدخل قيمة سداسية مخصصة (مثال #e8bc69).",
   "admin.categories.create.preview": "معاينة",
   "admin.categories.create.previewPlaceholder": "معاينة اسم الفئة",
   "admin.categories.create.submit": "إنشاء الفئة",

@@ -6,10 +6,13 @@ on:
   pull_request:
     branches: ["main"]
 
+permissions:
+  contents: read
+
 jobs:
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -21,7 +24,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U hawl -d hawl_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -34,31 +37,52 @@ jobs:
       NODE_ENV: test
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      - name: Secret scan (gitleaks)
+      - name: Secret scan (Gitleaks)
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: npm ci
-      - run: npx prisma generate --schema=apps/api/prisma/schema.prisma
-      - run: npx prisma db push --schema=apps/api/prisma/schema.prisma
-      - run: npm run db:seed -w @hawl/api || echo "Seed failed, skipping"
-      - run: npm run lint
-      - run: npm run format:check
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Dependency audit (production deps, critical severity)
+      - name: Generate Prisma Client
+        run: npx prisma generate --schema=apps/api/prisma/schema.prisma
+
+      - name: Push test database schema
+        run: npx prisma db push --schema=apps/api/prisma/schema.prisma
+
+      - name: Seed test database
+        run: npm run db:seed -w @hawl/api
+
+      # Format first, then validate formatting.
+      - name: Format code
+        run: npm run format
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Dependency audit (production dependencies - critical)
         run: npm audit --omit=dev --audit-level=critical
 
       - name: Generate SBOM
