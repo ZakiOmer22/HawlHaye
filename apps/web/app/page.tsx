@@ -233,11 +233,7 @@ export default function Home() {
       {/* UNIVERSITY SPOTLIGHT · ADDED ABOVE THE ORIGINAL HAWLHAYE HERO */}
       <section className="relative isolate overflow-hidden border-b border-border bg-[#071321] text-white">
         <div className="absolute inset-0">
-          <img
-            src="gallery/uoh-gate.jpg"
-            alt="University campus architecture"
-            className="h-full w-full object-cover opacity-30"
-          />
+          <img src="gallery/uoh-gate.jpg" alt="University campus architecture" className="h-full w-full object-cover opacity-30" />
           <div className="absolute inset-0 bg-gradient-to-r from-[#06111f] via-[#071321]/85 to-[#071321]/45" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#071321] via-transparent to-[#071321]/35" />
         </div>
