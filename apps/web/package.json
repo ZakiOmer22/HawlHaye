@@ -6,7 +6,8 @@
     "dev": "next dev -p 3000",
     "build": "tsc -p ../../packages/shared/tsconfig.json && next build --webpack",
     "start": "next start -p 3000",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

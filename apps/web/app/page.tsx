@@ -786,7 +786,7 @@ export default function Home() {
                 </div>
               </div>
             </TiltCard>
-            {FEATURES.slice(0, 5).map((f, i) => (
+            {FEATURES.slice(0, 5).map((f) => (
               <TiltCard
                 key={f.title}
                 className={`${card} p-6 transition hover:border-accent/35 md:col-span-3`}
@@ -1509,7 +1509,7 @@ export default function Home() {
             description="Learning, collaboration, and hands-on work across the college."
           />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {GALLERY.map((g, i) => (
+            {GALLERY.map((g) => (
               <motion.figure
                 key={g.src}
                 variants={fadeUp}

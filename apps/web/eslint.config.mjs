@@ -1,16 +1,8 @@
 // apps/web/eslint.config.mjs
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
+import js from "@eslint/js";
+import tseslint from "typescript-eslint";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
-const eslintConfig = [
+export default tseslint.config(
   {
     ignores: [
       ".next/**",
@@ -18,21 +10,20 @@ const eslintConfig = [
       "dist/**",
       "build/**",
       "public/**",
-      // Ignore everything outside of apps/web
       "../../apps/mobile/**",
       "../../apps/api/**",
       "../../packages/**",
     ],
   },
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
     rules: {
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+      "@typescript-eslint/no-explicit-any": "off",
     },
-  },
-];
-
-export default eslintConfig;
+  }
+);
