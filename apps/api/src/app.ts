@@ -3,7 +3,6 @@ import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
-import pinoHttp from "pino-http";
 import compression from "compression";
 import swaggerUi from "swagger-ui-express";
 import path from "node:path";
@@ -17,14 +16,17 @@ import { swaggerSpec } from "./lib/swagger";
 import { globalLimiter } from "./middleware/rateLimiter";
 import { checkMaintenance } from "./middleware/maintenance";
 import { check2FA } from "./middleware/require2FA";
+import { createResponseGuard } from "./lib/response-guard";
+import { uploadsGuard } from "./middleware/uploads-guard";
+import { createHttpLogger } from "./lib/http-logger";
 
-const responseBodyMap = new WeakMap<object, unknown>();
 const JSON_BODY_LIMIT = "1mb";
 
 export function createApp(env: Env): Express {
   const app = express();
   const isProd = env.NODE_ENV === "production";
 
+  app.disable("x-powered-by");
   app.set("trust proxy", env.TRUST_PROXY);
   app.set("etag", "strong");
 
@@ -68,56 +70,44 @@ export function createApp(env: Env): Express {
 
   app.use(compression());
   app.use(globalLimiter);
-  app.use(express.static(path.join(process.cwd(), "public")));
 
-  app.use(express.json({ limit: JSON_BODY_LIMIT }));
-  app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
+  // cookieParser runs before static files so the uploads guard can read the session cookie.
   app.use(cookieParser(env.SESSION_SECRET));
-  app.use(csrfProtection);
 
-  app.use((req, res, next) => {
-    const originalJson = res.json;
-    res.json = function (body) {
-      if (res.statusCode >= 400) {
-        responseBodyMap.set(res, body);
-      }
-      return originalJson.call(this, body);
-    };
-    next();
-  });
-
-  const logBodies = !isProd;
-
+  // Safety net: no matter what a route returns, secrets / hashes / storage keys are removed.
   app.use(
-    pinoHttp({
-      logger,
-      redact: {
-        paths: [
-          "req.headers.cookie",
-          "res.headers['set-cookie']",
-          "req.headers.authorization",
-          "req.headers['x-confirm-password']",
-          "req.query.t",
-        ],
-        censor: "[REDACTED]",
-      },
-      autoLogging: { ignore: (req) => req.url === "/health" },
-      customSuccessMessage: (req, res, responseTime) => {
-        const ip =
-          req.headers["x-forwarded-for"]?.toString() || req.socket.remoteAddress || "unknown";
-        const logged = logBodies ? responseBodyMap.get(res) : undefined;
-        const body = logged ? ` | Body: ${JSON.stringify(logged)}` : "";
-        return `${req.method} ${req.url} -> ${res.statusCode} (${responseTime}ms) | IP: ${ip}${body}`;
-      },
-      customErrorMessage: (req, res, err) => {
-        const ip =
-          req.headers["x-forwarded-for"]?.toString() || req.socket.remoteAddress || "unknown";
-        const logged = logBodies ? responseBodyMap.get(res) : undefined;
-        const body = logged ? ` | Body: ${JSON.stringify(logged)}` : "";
-        return ` ${req.method} ${req.url} -> ${res.statusCode} | IP: ${ip} | Error: ${err.message}${body}`;
+    createResponseGuard((report) => {
+      logger.warn(
+        report,
+        "RESPONSE_GUARD: sensitive keys were stripped from a response — select explicit fields in this route",
+      );
+    }),
+  );
+
+  // Static files. /uploads is gated: logo-* is public, everything else needs a session and
+  // ticket-level access (see middleware/uploads-guard.ts).
+  app.use("/uploads", uploadsGuard);
+  app.use(
+    express.static(path.join(process.cwd(), "public"), {
+      index: false,
+      setHeaders: (res, filePath) => {
+        if (filePath.split(path.sep).includes("uploads")) {
+          // Uploaded content must never execute or be framed, even if opened directly (e.g. SVG).
+          res.setHeader(
+            "Content-Security-Policy",
+            "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox",
+          );
+          res.setHeader("X-Content-Type-Options", "nosniff");
+        }
       },
     }),
   );
+
+  app.use(express.json({ limit: JSON_BODY_LIMIT }));
+  app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
+  app.use(csrfProtection);
+
+  app.use(createHttpLogger(logger));
 
   if (!isProd) {
     app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));

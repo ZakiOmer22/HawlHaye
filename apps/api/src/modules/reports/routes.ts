@@ -113,14 +113,18 @@ reportsRouter.get(
         },
       }),
 
+      // Workload shows only people (and tasks) inside the caller's visibility scope. Dean and Deputy see
+      // everyone; everyone else sees only their own reporting line. (Was: everyone in the caller's office.)
       prisma.user.findMany({
-        where: { active: true, officeId: user.officeId ?? undefined },
+        where: ["DEAN", "DEPUTY"].includes(user.role)
+          ? { active: true }
+          : { active: true, ownedTasks: { some: { deletedAt: null, AND: [taskScopeFor(user)] } } },
         take: 50,
         select: {
           id: true,
           fullName: true,
           ownedTasks: {
-            where: { deletedAt: null, status: { not: "COMPLETED" } },
+            where: { deletedAt: null, status: { not: "COMPLETED" }, AND: [taskScopeFor(user)] },
             select: { status: true },
           },
         },

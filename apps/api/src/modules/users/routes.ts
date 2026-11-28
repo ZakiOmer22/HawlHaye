@@ -171,6 +171,7 @@ usersRouter.get(
 usersRouter.patch(
   "/:id/hierarchy",
   requireRole("ADMINISTRATOR", "DEAN", "DEPUTY"),
+  require2FAForHighRisk,
   asyncHandler(async (req, res) => {
     const id = String(req.params.id);
     const input = setHierarchySchema.parse(req.body);
@@ -183,15 +184,24 @@ usersRouter.patch(
       }
       if (input.supervisorId) {
         const sup = await prisma.user.findUnique({ where: { id: input.supervisorId } });
-        if (!sup || !sup.active) throw new HttpError(400, "Supervisor not valid", "invalid_request");
+        if (!sup || !sup.active)
+          throw new HttpError(400, "Supervisor not valid", "invalid_request");
       }
     }
     if (input.coordinatorIds) {
       if (target.role !== "ADMINISTRATOR") {
-        throw new HttpError(400, "Only Administrators can be linked to coordinators", "invalid_request");
+        throw new HttpError(
+          400,
+          "Only Administrators can be linked to coordinators",
+          "invalid_request",
+        );
       }
       const coords = await prisma.user.findMany({
-        where: { id: { in: input.coordinatorIds }, active: true, role: { in: ["FACULTY_COORDINATOR", "LABS_COORDINATOR"] } },
+        where: {
+          id: { in: input.coordinatorIds },
+          active: true,
+          role: { in: ["FACULTY_COORDINATOR", "LABS_COORDINATOR"] },
+        },
         select: { id: true },
       });
       if (coords.length !== new Set(input.coordinatorIds).size) {

@@ -9,7 +9,12 @@ export function formatDate(value: string | Date | null | undefined): string {
 export function formatDateTime(value: string | Date | null | undefined): string {
   if (!value) return "—";
   const d = typeof value === "string" ? new Date(value) : value;
-  return d.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 export function isOverdue(dueDate: string | null | undefined, status: string): boolean {
   if (!dueDate || status === "COMPLETED") return false;
@@ -18,7 +23,8 @@ export function isOverdue(dueDate: string | null | undefined, status: string): b
 // legacy names used by older screens
 export const fmtDate = formatDate;
 export const fmtDateTime = (iso: string) => formatDateTime(iso);
-export const isOverdueTask = (t: Pick<Task, "dueDate" | "status">) => isOverdue(t.dueDate, t.status);
+export const isOverdueTask = (t: Pick<Task, "dueDate" | "status">) =>
+  isOverdue(t.dueDate, t.status);
 export function dueLabel(t: Pick<Task, "dueDate" | "status">): string {
   if (!t.dueDate) return "—";
   return formatDate(t.dueDate);

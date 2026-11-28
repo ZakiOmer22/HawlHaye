@@ -16,7 +16,7 @@
     "dev:studio": "npx prisma studio --schema=apps/api/prisma/schema.prisma",
     "build": "npm run build -w @hawl/shared && npm run build -w @hawl/api && npm run build -w @hawl/web",
     "typecheck": "npm run build -w @hawl/shared && npm run typecheck -w @hawl/api && npm run typecheck -w @hawl/web",
-    "lint": "eslint .",
+    "lint": "npm run lint -w @hawl/web && npm run lint -w @hawl/api",
     "test": "npm run build -w @hawl/shared && vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

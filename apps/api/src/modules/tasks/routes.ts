@@ -31,6 +31,18 @@ import { signAttachmentToken, verifyAttachmentToken } from "../../lib/signedUrl"
 import { env } from "../../config/env";
 import { assertStorageAvailable } from "../../middleware/upload"; // ADDED IMPORT
 
+// Attachment fields that are safe to return. `storageKey` (the on-disk file name) is deliberately
+// left out: clients download through the authenticated /download or signed /view endpoints by id.
+const ATTACHMENT_SELECT = {
+  id: true,
+  taskId: true,
+  uploadedById: true,
+  fileName: true,
+  mimeType: true,
+  sizeBytes: true,
+  createdAt: true,
+} as const;
+
 function pathParam(req: Request, name: string): string {
   const value = req.params[name];
   if (!value) throw new HttpError(400, `Missing ${name}`, "invalid_request");
@@ -225,7 +237,9 @@ tasksRouter.get(
     const task = await prisma.task.findUnique({
       where: { id: pathParam(req, "id") },
       include: {
-        owner: { select: { id: true, fullName: true, email: true } },
+        // No email here: every role that can view a task (including technicians) would receive
+        // the owner's address. Nothing in the web or mobile app reads it.
+        owner: { select: { id: true, fullName: true } },
         createdBy: { select: { id: true, fullName: true } },
         assignedBy: { select: { id: true, fullName: true } },
         category: true,
@@ -572,6 +586,7 @@ tasksRouter.post(
           sizeBytes: req.file!.size,
           storageKey: secureFilename,
         },
+        select: ATTACHMENT_SELECT,
       });
       await tx.taskEvent.create({
         data: { taskId: id, actorId: req.user!.id, type: "ATTACHED", note: req.file!.originalname },
@@ -602,6 +617,7 @@ tasksRouter.get(
     const data = await prisma.attachment.findMany({
       where: { taskId: id },
       orderBy: { createdAt: "desc" },
+      select: ATTACHMENT_SELECT,
     });
     res.json({ data });
   }),
@@ -636,6 +652,8 @@ tasksRouter.get(
       `attachment; filename="${safeName}"; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`,
     );
     res.setHeader("Content-Type", attachment.mimeType);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "private, no-store");
     res.sendFile(filePath);
   }),
 );

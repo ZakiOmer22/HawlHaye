@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import { ZodError } from "zod";
-import { Prisma } from "@prisma/client"; // ADDED
+import { Prisma } from "@prisma/client";
 import multer from "multer";
 import { logger } from "../lib/logger";
 
@@ -26,8 +26,21 @@ export class UploadRejectedError extends Error {
   }
 }
 
+/**
+ * Single exit point for every error response. Also records the machine-readable code on
+ * `res.locals` so the request logger can print "Code: maintenance_mode" instead of the body.
+ */
+function fail(
+  res: Response,
+  status: number,
+  body: { error: string } & Record<string, unknown>,
+): void {
+  res.locals.errorCode = body.error;
+  res.status(status).json(body);
+}
+
 export function notFound(_req: Request, res: Response): void {
-  res.status(404).json({ error: "not_found", message: "Route not found" });
+  fail(res, 404, { error: "not_found", message: "Route not found" });
 }
 
 function isBodyParserError(err: unknown): err is { type: string; status: number; message: string } {
@@ -39,10 +52,34 @@ function isBodyParserError(err: unknown): err is { type: string; status: number;
   );
 }
 
-export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {
+/** Errors from libraries (http-errors: static files, body-parser, ...) that carry a 4xx status. */
+function isClientHttpError(err: unknown): err is { status: number; expose?: boolean } {
+  if (typeof err !== "object" || err === null) return false;
+  const status = (err as { status?: unknown }).status;
+  return typeof status === "number" && status >= 400 && status < 500;
+}
+
+const STATUS_CODES: Record<number, string> = {
+  400: "invalid_request",
+  401: "unauthenticated",
+  403: "forbidden",
+  404: "not_found",
+  405: "method_not_allowed",
+  413: "payload_too_large",
+  415: "unsupported_media_type",
+  429: "too_many_requests",
+};
+
+export function errorHandler(err: unknown, req: Request, res: Response, next: NextFunction): void {
+  // If a response (e.g. an SSE stream) is already in flight we cannot send JSON anymore.
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
+
   // 1. Zod validation — safe to surface issue paths/messages
   if (err instanceof ZodError) {
-    res.status(400).json({
+    fail(res, 400, {
       error: "validation_failed",
       issues: err.issues.map((i) => ({ path: i.path, message: i.message })),
     });
@@ -51,7 +88,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
 
   // 2. Upload rejection (from multer fileFilter) — client-caused
   if (err instanceof UploadRejectedError) {
-    res.status(400).json({ error: err.code, message: err.message });
+    fail(res, 400, { error: err.code, message: err.message });
     return;
   }
 
@@ -59,27 +96,28 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   if (err instanceof multer.MulterError) {
     switch (err.code) {
       case "LIMIT_FILE_SIZE":
-        res.status(413).json({
+        fail(res, 413, {
           error: "file_too_large",
           message: "Uploaded file exceeds the allowed size.",
         });
         return;
       case "LIMIT_FILE_COUNT":
       case "LIMIT_UNEXPECTED_FILE":
-        res.status(400).json({
+        fail(res, 400, {
           error: "invalid_file_upload",
           message: "Unexpected or too many files.",
         });
         return;
       default:
-        res.status(400).json({ error: "upload_failed", message: err.message });
+        // Do not echo library-internal wording back to the client.
+        fail(res, 400, { error: "upload_failed", message: "The upload could not be processed." });
         return;
     }
   }
 
   // 4. body-parser: JSON body exceeded express.json limit
   if (isBodyParserError(err) && err.type === "entity.too.large") {
-    res.status(413).json({
+    fail(res, 413, {
       error: "payload_too_large",
       message: "Request body exceeds the allowed limit.",
     });
@@ -88,39 +126,54 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
 
   // 5. body-parser: malformed JSON
   if (isBodyParserError(err) && err.type === "entity.parse.failed") {
-    res.status(400).json({ error: "invalid_json", message: "Malformed JSON body." });
+    fail(res, 400, { error: "invalid_json", message: "Malformed JSON body." });
+    return;
+  }
+
+  // 5b. Any other body-parser rejection (bad charset/encoding, aborted request, ...)
+  if (isBodyParserError(err) && err.status >= 400 && err.status < 500) {
+    fail(res, 400, { error: "invalid_request", message: "Invalid request body." });
     return;
   }
 
   // 6. CORS allowlist rejection (thrown from the cors origin callback)
   if (err instanceof Error && err.message === "Not allowed by CORS") {
-    res.status(403).json({ error: "cors_rejected", message: "Origin not allowed." });
+    fail(res, 403, { error: "cors_rejected", message: "Origin not allowed." });
     return;
   }
 
-  // 7. PRISMA ERROR MAPPING
+  // 7. PRISMA ERROR MAPPING (anything not listed falls through to the generic 500 below,
+  //    so no table/column/constraint names ever reach the client)
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === "P2002") {
-      res
-        .status(409)
-        .json({ error: "conflict", message: "A record with this unique value already exists." });
+      fail(res, 409, {
+        error: "conflict",
+        message: "A record with this unique value already exists.",
+      });
       return;
     }
     if (err.code === "P2025") {
-      res.status(404).json({ error: "not_found", message: "Record not found." });
+      fail(res, 404, { error: "not_found", message: "Record not found." });
       return;
     }
     if (err.code === "P2003") {
-      res
-        .status(400)
-        .json({ error: "invalid_reference", message: "Related record does not exist." });
+      fail(res, 400, { error: "invalid_reference", message: "Related record does not exist." });
       return;
     }
   }
 
   // 8. Expected application errors — safe to surface code + message
   if (err instanceof HttpError) {
-    res.status(err.status).json({ error: err.code, message: err.message });
+    fail(res, err.status, { error: err.code, message: err.message });
+    return;
+  }
+
+  // 8b. Other 4xx raised by libraries (e.g. static file serving): generic, never the library text
+  if (isClientHttpError(err)) {
+    fail(res, err.status, {
+      error: STATUS_CODES[err.status] ?? "invalid_request",
+      message: "The request could not be processed.",
+    });
     return;
   }
 
@@ -133,7 +186,8 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
       correlationId,
       userId,
       method: req.method,
-      path: req.originalUrl,
+      // path only: the query string can carry tokens / search terms
+      path: req.originalUrl.split("?")[0],
       err: err instanceof Error ? err.message : String(err),
       stack:
         process.env.NODE_ENV === "production"
@@ -145,7 +199,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     "Unhandled server error",
   );
 
-  res.status(500).json({
+  fail(res, 500, {
     error: "internal_error",
     message: `An unexpected error occurred. Reference: ${correlationId}`,
     correlationId,

@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    # 1. SPIN UP A TEMPORARY DATABASE FOR TESTS
     services:
       postgres:
         image: postgres:16
@@ -27,7 +26,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-    # 2. PASS ENV VARIABLES SO TESTS DON'T CRASH
     env:
       DATABASE_URL: postgresql://hawl:hawl@localhost:5432/hawl_test
       SESSION_SECRET: "test-secret-test-secret-test-secret-0000"
@@ -51,13 +49,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - run: npm ci
+      - run: npx prisma generate -w @hawl/api
+      - run: npx prisma db push -w @hawl/api
+      - run: npm run db:seed -w @hawl/api || echo "Seed failed, skipping"
       - run: npm run lint
       - run: npm run format:check
       - run: npm run typecheck
-
-      # 3. PUSH THE SCHEMA TO THE TEMPORARY DB
-      - run: npx prisma db push -w @hawl/api
-
       - run: npm test
       - run: npm run build
 

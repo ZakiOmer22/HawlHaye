@@ -57,6 +57,7 @@ export const transitionSchema = z
 export const dailyReportSchema = z
   .object({
     body: sanitizedString(2000).pipe(z.string().min(10, "Please write at least a short summary")),
+    attachmentUrl: z.string().optional(),
   })
   .strict();
 

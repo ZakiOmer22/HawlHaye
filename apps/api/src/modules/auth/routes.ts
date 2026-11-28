@@ -154,8 +154,10 @@ function permissionMapFor(settings: SystemSettings, role: string): Record<string
   return { ...defaultRolePerms, ...dbRolePerms };
 }
 
+// FIX: universityName was missing, so the frontend header had no name to display.
 function brandingOf(settings: SystemSettings) {
   return {
+    universityName: settings?.universityName ?? null,
     logoUrl: settings?.logoUrl ?? null,
     primaryColor: settings?.primaryColor ?? null,
   };

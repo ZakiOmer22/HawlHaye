@@ -115,7 +115,11 @@ export async function request<T = unknown>(path: string, opts: Opts = {}): Promi
     });
   } catch (e) {
     const aborted = e instanceof Error && e.name === "AbortError";
-    throw new ApiError(0, aborted ? "Request timed out" : "Network error. Check your connection.", "network");
+    throw new ApiError(
+      0,
+      aborted ? "Request timed out" : "Network error. Check your connection.",
+      "network",
+    );
   } finally {
     clearTimeout(timer);
   }

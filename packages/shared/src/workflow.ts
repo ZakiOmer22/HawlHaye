@@ -1,4 +1,4 @@
-import { isCoordinator, isLeadership, type Role } from "./roles";
+import { COORDINATORS_CAN_ASSIGN, isCoordinator, isLeadership, type Role } from "./roles";
 import type { TaskStatus } from "./status";
 
 export interface Actor {
@@ -24,7 +24,7 @@ export const TRANSITIONS: readonly Rule[] = [
   {
     from: "UNASSIGNED",
     to: "ASSIGNED",
-    who: ["leadership", "coordinator"],
+    who: COORDINATORS_CAN_ASSIGN ? ["leadership", "coordinator"] : ["leadership"],
     note: "Needs owner, priority, due date. Coordinators can only assign inside their reporting line (enforced by the API).",
   },
   { from: "ASSIGNED", to: "IN_PROGRESS", who: ["owner", "delegate"], note: "Work started" },

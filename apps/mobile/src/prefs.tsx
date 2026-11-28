@@ -25,20 +25,32 @@ export function PrefsProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      const [l, t] = await Promise.all([AsyncStorage.getItem(LANG_KEY), AsyncStorage.getItem(THEME_KEY)]);
+      const [l, t] = await Promise.all([
+        AsyncStorage.getItem(LANG_KEY),
+        AsyncStorage.getItem(THEME_KEY),
+      ]);
       if (l === "en" || l === "so" || l === "ar") setLang(l);
       if (t === "dark" || t === "light") setThemeState(t);
       setReady(true);
     })();
   }, []);
 
-  const setLanguage = useCallback((l: Language) => { setLang(l); void AsyncStorage.setItem(LANG_KEY, l); }, []);
-  const setTheme = useCallback((t: ThemeName) => { setThemeState(t); void AsyncStorage.setItem(THEME_KEY, t); }, []);
+  const setLanguage = useCallback((l: Language) => {
+    setLang(l);
+    void AsyncStorage.setItem(LANG_KEY, l);
+  }, []);
+  const setTheme = useCallback((t: ThemeName) => {
+    setThemeState(t);
+    void AsyncStorage.setItem(THEME_KEY, t);
+  }, []);
   const t = useCallback<Prefs["t"]>((key, vars) => translate(language, key, vars), [language]);
   const isRtl = LANGUAGES.find((x) => x.code === language)?.dir === "rtl";
   const palette = useMemo(() => paletteFor(theme), [theme]);
 
-  const value = useMemo<Prefs>(() => ({ language, theme, isRtl, palette, setLanguage, setTheme, t }), [language, theme, isRtl, palette, setLanguage, setTheme, t]);
+  const value = useMemo<Prefs>(
+    () => ({ language, theme, isRtl, palette, setLanguage, setTheme, t }),
+    [language, theme, isRtl, palette, setLanguage, setTheme, t],
+  );
   if (!ready) return null;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

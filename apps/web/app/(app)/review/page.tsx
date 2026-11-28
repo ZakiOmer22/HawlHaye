@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
-import type { Task } from "@/lib/types";
+import type { Role, Task, User as AppUser } from "@/lib/types";
+import { canDecideReview } from "@/lib/permissions";
 import { formatDate } from "@/lib/format";
 import { usePreferences } from "@/lib/preferences";
 import { useBoardRealtime } from "@/lib/realtime";
@@ -26,6 +27,14 @@ export default function ReviewQueuePage() {
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  const [role, setRole] = useState<Role | null>(null);
+  const canDecide = role ? canDecideReview(role) : false;
+
+  useEffect(() => {
+    api<{ data: AppUser }>("/auth/me")
+      .then((r) => setRole(r.data.role))
+      .catch(() => setRole(null));
+  }, []);
 
   const [pendingReturn, setPendingReturn] = useState<Task | null>(null);
   const [reasonInput, setReasonInput] = useState("");
@@ -101,10 +110,8 @@ export default function ReviewQueuePage() {
     else label = t("review.wait.days", { days });
 
     let colorClass = "text-emerald-400 bg-emerald-400/10 border-emerald-400/20";
-    if (days >= 5)
-      colorClass = "text-red-400 bg-red-400/10 border-red-400/20";
-    else if (days >= 3)
-      colorClass = "text-amber-400 bg-amber-400/10 border-amber-400/20";
+    if (days >= 5) colorClass = "text-red-400 bg-red-400/10 border-red-400/20";
+    else if (days >= 3) colorClass = "text-amber-400 bg-amber-400/10 border-amber-400/20";
     else if (days >= 1) colorClass = "text-blue-400 bg-blue-400/10 border-blue-400/20";
 
     return { label, colorClass };
@@ -157,6 +164,11 @@ export default function ReviewQueuePage() {
           </p>
           <h1 className="mt-1 text-3xl font-black text-white">{t("review.heading")}</h1>
           <p className="mt-2 text-sm text-[#94A3B8]">{t("review.subtitle")}</p>
+          {role && !canDecide && (
+            <p className="mt-2 text-xs font-bold text-[#e8bc69]">
+              View only: the Dean or Deputy accepts or returns work.
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-[#334155] bg-[#1E293B] px-5 py-3 shadow-sm">
           <span className="text-2xl font-black text-[#e8bc69]">{tasks.length}</span>
@@ -248,28 +260,30 @@ export default function ReviewQueuePage() {
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row lg:flex-col gap-2 shrink-0 lg:w-36 pt-4 lg:pt-0 border-t lg:border-t-0 lg:border-l border-[#334155] lg:pl-6">
-                  <button
-                    onClick={() => executeAction(task, "COMPLETED")}
-                    disabled={!!actionBusy}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#e8bc69] px-4 py-2.5 text-sm font-bold text-[#0F172A] transition hover:bg-[#f1cf8b] disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#e8bc69] focus:ring-offset-2 focus:ring-offset-[#1E293B] shadow-sm"
-                  >
-                    {busy ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <CheckCircle2 size={16} />
-                    )}
-                    {t("review.action.accept")}
-                  </button>
+                {canDecide && (
+                  <div className="flex flex-col sm:flex-row lg:flex-col gap-2 shrink-0 lg:w-36 pt-4 lg:pt-0 border-t lg:border-t-0 lg:border-l border-[#334155] lg:pl-6">
+                    <button
+                      onClick={() => executeAction(task, "COMPLETED")}
+                      disabled={!!actionBusy}
+                      className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#e8bc69] px-4 py-2.5 text-sm font-bold text-[#0F172A] transition hover:bg-[#f1cf8b] disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#e8bc69] focus:ring-offset-2 focus:ring-offset-[#1E293B] shadow-sm"
+                    >
+                      {busy ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <CheckCircle2 size={16} />
+                      )}
+                      {t("review.action.accept")}
+                    </button>
 
-                  <button
-                    onClick={() => setPendingReturn(task)}
-                    disabled={!!actionBusy}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm font-bold text-red-400 transition hover:bg-red-500/20 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-[#1E293B]"
-                  >
-                    <RotateCcw size={16} /> {t("review.action.return")}
-                  </button>
-                </div>
+                    <button
+                      onClick={() => setPendingReturn(task)}
+                      disabled={!!actionBusy}
+                      className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm font-bold text-red-400 transition hover:bg-red-500/20 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-[#1E293B]"
+                    >
+                      <RotateCcw size={16} /> {t("review.action.return")}
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}

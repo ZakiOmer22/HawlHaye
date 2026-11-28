@@ -504,6 +504,12 @@ async function main(): Promise<void> {
     userNames[u.key] = u.fullName;
   }
 
+  // Reporting lines (CECIT chart): both Lab Technicians report to the Labs Coordinator. Idempotent.
+  await prisma.user.updateMany({
+    where: { id: { in: [userIds.tech, userIds.tech2] } },
+    data: { supervisorId: userIds.labs },
+  });
+
   if ((await prisma.task.count()) > 0) {
     console.warn(
       "Tasks already exist: demo tasks skipped (use migrate reset on a LOCAL database for a clean start).",
